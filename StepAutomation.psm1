@@ -207,7 +207,7 @@ class WebOperation : Operation {
                 Try{
                     New-Item -ItemType Directory $this.BrowserTempFolder -ErrorAction Stop
                 }catch{
-                    throw "Cannot Create Directory $($this.BrowserTempFolder) $($_.exception.message)"   
+                    throw $_   
                 }
             }
             if($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
@@ -226,12 +226,11 @@ class WebOperation : Operation {
             }
             Try{
                 if($this.BackroundProcess){
-                    $script:chromeProcess = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList `
-                    "about:blank --remote-debugging-port=$DebugPort --user-data-dir=$($this.BrowserTempFolder) --headless --disable-extensions --disable-gpu" -ErrorAction Stop -PassThru
+                    $chromeArgs = "about:blank --remote-debugging-port=$DebugPort --user-data-dir=$($this.BrowserTempFolder) --headless --disable-extensions --disable-gpu"
                 }else{
-                    $script:chromeProcess = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList `
-                    "about:blank --remote-debugging-port=$DebugPort --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu" -ErrorAction Stop -PassThru
+                    $chromeArgs = "about:blank --remote-debugging-port=$DebugPort --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu"
                 }
+                $script:chromeProcess = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList $chromeArgs -ErrorAction Stop -PassThru
             }catch{
                 throw $_
             }
@@ -404,8 +403,8 @@ class Frame : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU/whK00sYyYyvv9qZW3/eMghC
-# Hg+gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUrOCLiGiA8q44aEwKf+xdBVTo
+# QY6gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -424,11 +423,11 @@ class Frame : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUPGtAnR6HPVj9TDpA
-# EGsjQLu4J2EwDQYJKoZIhvcNAQEBBQAEggEAnv2DKESIZqBc4zp7rBp2o8MvX3KK
-# KN+Iw5RC894Tql4GiZv8nOBexqdZGUtZg0hPbvbWQMT3aJCFKqfrexQRKvQCcivz
-# Fcf6QbuOnJ0XKPbKqU8YXU/LmvoULitGXHSZrzjbDIlVxVFnOCTpW+wQzYZCWCew
-# dABBIiNu0TVXgK5mMDnTnsFyQf32DILOV6NgnWkWItcIbVPa9tYcztxqtdnm43jY
-# fTmo5BXUDBGpKowRvYvg8PW+OgxcmEs4TS/LzBxVEBRz829p5SKTmyKH//qARU5/
-# uE6MGERZJEQzmCKFPWHhKLSUgIzW/Vocgglu3kWUAH2djgYtsYGvVMi7Qw==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUy9ujyBeEu84djdfS
+# E/NQxmCm3fAwDQYJKoZIhvcNAQEBBQAEggEADqa06aStnilHQ2NtHmsc0qtD8CLc
+# yO4xiZyf2rASrkjorTqCQp8WSphONJFMxdWcQ335T41pe73ld1uzkIq8H7UKit0P
+# RSMtqsZTVflPdDh1DOiI7i/CB/HlMzWZRT1P2qAgkYZhOgeidlHc0E11ErJtvj+I
+# ckGC02E8YKhOrTx6jRhXClyknR/c9XAAvJ3x73Fmfs1389hamDZkT+cimoefukYJ
+# cZRlU4UObLtecKQ9pTbyYZo1ag61LVnTt1biAzWRmHw7atrAczDD30a3oqQog/ko
+# tKCXfHegtHbvnALYE+6RT4VNhQHnfFVtTUNiDsbRYU38Gs7NCDTzK7K7Qw==
 # SIG # End signature block
