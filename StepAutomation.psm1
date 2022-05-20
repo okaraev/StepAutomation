@@ -400,11 +400,65 @@ class Frame : Method {
     }
 }
 
+class Navigate : Method {
+    Navigate()
+    : base('Navigate',$this.myFunction){
+    }
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            $WebDriver.Navigate().GotoURL($Step.Value)
+        }catch{
+            throw $_
+        }
+    }
+}
+
+class Click : Method {
+    Click()
+    : base('Click',$this.myFunction){
+    }
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            $element = [element]::GetOne($WebDriver,$Step.Value)
+        }catch{
+            throw $_
+        }
+        Try{
+            $element.Click()
+        }catch{
+            throw $_
+        }
+    }
+}
+
+
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUrOCLiGiA8q44aEwKf+xdBVTo
-# QY6gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUigCDCO0tLZb35mv9xbF21Sho
+# M22gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -423,11 +477,11 @@ class Frame : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUy9ujyBeEu84djdfS
-# E/NQxmCm3fAwDQYJKoZIhvcNAQEBBQAEggEADqa06aStnilHQ2NtHmsc0qtD8CLc
-# yO4xiZyf2rASrkjorTqCQp8WSphONJFMxdWcQ335T41pe73ld1uzkIq8H7UKit0P
-# RSMtqsZTVflPdDh1DOiI7i/CB/HlMzWZRT1P2qAgkYZhOgeidlHc0E11ErJtvj+I
-# ckGC02E8YKhOrTx6jRhXClyknR/c9XAAvJ3x73Fmfs1389hamDZkT+cimoefukYJ
-# cZRlU4UObLtecKQ9pTbyYZo1ag61LVnTt1biAzWRmHw7atrAczDD30a3oqQog/ko
-# tKCXfHegtHbvnALYE+6RT4VNhQHnfFVtTUNiDsbRYU38Gs7NCDTzK7K7Qw==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUZ+6aj6BNhneOSKiC
+# ja8ssYoPFB4wDQYJKoZIhvcNAQEBBQAEggEAr8+QYnSTccsaMG0pu7ZawSsw0b6i
+# Kck29/VFQC1MAEwhWxnNhg0Mjg3v3LyWP+LAgJxPRIzPaMTZta9tHjQYju+x5oEe
+# cKK6OrlLlKZfMonHlxFWmJNwgN9U4FcrkzvCHGCUf8YHgIOfyoS2f2EqwnEflWRQ
+# JPOwytM+ZqtQpWYlonaed89LHfSN9uAJ04DNja7OvBlTvtl7SLc1FBv1A8/4Omj4
+# aDgoR/5tOxlGJfW0NYG/UH5mZIcYC7i+r0o9tl3K3oKwq+oWfgnim0XQqHD/3/o9
+# EfsayIvMWJqTuJbvfR7PJA375n+6vhB3VaxtNwf/z4ub9vNbh3YOjeC4tw==
 # SIG # End signature block
