@@ -66,26 +66,39 @@ class DriverConfig {
 
 class Operation{
     hidden [Step[]] $Steps
-    hidden [hashtable] $DefaultMethods
-    hidden [hashtable] $AllMethods
+    hidden [hashtable] $DefaultMethods = @{}
+    hidden [hashtable] $AllMethods = @{}
     hidden [int] $CurrentStep = 1
     Operation([Step[]]$Steps){
         $this.Steps = $Steps
-        $this.DefaultMethods = @{}
-        $this.AllMethods = @{}
-        if($Global:PSVersionTable.PSEdition -eq "Core"){
-            $Assemblies = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {$_.FullName -match 'Powershell Class Assembly'}
-            $defAssembly = $Assemblies[0]
-        }else{
-            $Assemblies = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {$_.FullName -match 'ps1' -or $_.FullName -match 'powershell, version=0' -or $_.FullName -match 'psm1'}
-            $defAssembly = $Assemblies | Where-Object {$_.FullName -match 'psm1'}
+        $this.CollectMethods()
+    }
+    hidden CollectMethods(){
+        $Assemblies = [System.Collections.ArrayList]::new()
+        foreach($ass in [AppDomain]::CurrentDomain.GetAssemblies()){
+            if($Global:PSVersionTable.PSEdition -eq "Core" -and $ass.FullName -match 'Powershell Class Assembly'){
+                if($ass.CustomAttributes.NamedArguments.TypedValue.Value -match 'psm1'){
+                    $ass | Add-Member -NotePropertyName isDefault -NotePropertyValue $true -Force
+                }
+                [void]$Assemblies.Add($ass)
+            }
+            elseif($ass.FullName -match 'ps1' -or $ass.FullName -match 'powershell, version=0' -or $ass.FullName -match 'psm1'){
+                if($ass.FullName -match 'psm1'){
+                    $ass | Add-Member -NotePropertyName isDefault -NotePropertyValue $true -Force
+                }
+                [void]$Assemblies.Add($ass)
+            }
         }
-        foreach($ChildClass in $defAssembly.GetTypes() | Where-Object {$_.BaseType -eq [Method]}){
-            $this.DefaultMethods[$ChildClass.Name] = $ChildClass
-            $this.AllMethods[$ChildClass.Name] = $ChildClass
-        }
-        foreach($ChildClass in $Assemblies.GetTypes() | Where-Object {$_.BaseType -eq [Method]}){
-            $this.AllMethods[$ChildClass.Name] = $ChildClass
+
+        foreach($ass in $Assemblies){
+            foreach($ChildClass in $ass.Gettypes()){
+                if($ChildClass.BaseType -eq [Method]){
+                    if($ass.isDefault){
+                        $this.DefaultMethods[$ChildClass.Name] = $ChildClass
+                    }
+                    $this.AllMethods[$ChildClass.Name] = $ChildClass
+                }
+            }
         }
     }
     [hashtable] GetDefaultMethods(){
@@ -189,6 +202,7 @@ class Operation{
 class WebOperation : Operation {
     hidden [DriverConfig] $Configuration
     hidden [Decimal] $DriverPort
+    hidden [Decimal] $DebugPort = 0
     hidden [String] $BrowserTempFolder
     hidden [bool] $BackroundProcess
     hidden [string] $MainWindow
@@ -201,42 +215,47 @@ class WebOperation : Operation {
         $this.BrowserTempFolder = $BrowserTempFolder
         $this.BackroundProcess = $Backround
     }
-    StartDriver([System.Object]$DriverContext){
-        if(!$this.isDriverStarted){
-            if(!(Test-Path $this.BrowserTempFolder)){
-                Try{
-                    New-Item -ItemType Directory $this.BrowserTempFolder -ErrorAction Stop
-                }catch{
-                    throw $_   
-                }
-            }
-            if($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
-                Try{
-                    $script:myDriverPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
-                }catch{
-                    throw $_
-                }
-            }
-            $DebugPort = 0
-            while($true){
-                $DebugPort = Get-Random -Minimum 65000 -Maximum 65500
-                if($DebugPort -notin (Get-NetTCPConnection).LocalPort){
-                    break
-                }
-            }
+    hidden StartBrowserDriver(){
+        if($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
             Try{
-                if($this.BackroundProcess){
-                    $chromeArgs = "about:blank --remote-debugging-port=$DebugPort --user-data-dir=$($this.BrowserTempFolder) --headless --disable-extensions --disable-gpu"
-                }else{
-                    $chromeArgs = "about:blank --remote-debugging-port=$DebugPort --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu"
-                }
-                $script:chromeProcess = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList $chromeArgs -ErrorAction Stop -PassThru
+                $script:myDriverPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
             }catch{
                 throw $_
             }
+        }
+    }
+    hidden StartBrowser(){
+        if(!(Test-Path $this.BrowserTempFolder)){
+            Try{
+                New-Item -ItemType Directory $this.BrowserTempFolder -ErrorAction Stop
+            }catch{
+                throw $_   
+            }
+        }
+        while($true){
+            $this.DebugPort = Get-Random -Minimum 65000 -Maximum 65500
+            if($this.DebugPort -notin (Get-NetTCPConnection).LocalPort){
+                break
+            }
+        }
+        Try{
+            if($this.BackroundProcess){
+                $chromeArgs = "about:blank --remote-debugging-port=$($this.DebugPort) --user-data-dir=$($this.BrowserTempFolder) --headless --disable-extensions --disable-gpu"
+            }else{
+                $chromeArgs = "about:blank --remote-debugging-port=$($this.DebugPort) --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu"
+            }
+            $script:chromeProcess = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList $chromeArgs -ErrorAction Stop -PassThru
+        }catch{
+            throw $_
+        }
+    }
+    StartDriver([System.Object]$DriverContext){
+        if(!$this.isDriverStarted){
             Try {
+                $this.StartBrowserDriver()
+                $this.StartBrowser()
                 $options = [OpenQA.Selenium.Chrome.ChromeOptions]::new()
-                $options.DebuggerAddress = "127.0.0.1:$DebugPort"
+                $options.DebuggerAddress = "127.0.0.1:$($this.DebugPort)"
                 $this.WebDriver = [OpenQA.Selenium.Remote.RemoteWebDriver]::New("http://localhost:$($this.DriverPort)",$options)
                 $this.MainWindow = $this.WebDriver.WindowHandles
                 $property = [PSCustomObject]@{
@@ -457,8 +476,8 @@ class Click : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUigCDCO0tLZb35mv9xbF21Sho
-# M22gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUJXVR1VtdubjS9Sh7HrTTgenX
+# d6+gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -477,11 +496,11 @@ class Click : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUZ+6aj6BNhneOSKiC
-# ja8ssYoPFB4wDQYJKoZIhvcNAQEBBQAEggEAr8+QYnSTccsaMG0pu7ZawSsw0b6i
-# Kck29/VFQC1MAEwhWxnNhg0Mjg3v3LyWP+LAgJxPRIzPaMTZta9tHjQYju+x5oEe
-# cKK6OrlLlKZfMonHlxFWmJNwgN9U4FcrkzvCHGCUf8YHgIOfyoS2f2EqwnEflWRQ
-# JPOwytM+ZqtQpWYlonaed89LHfSN9uAJ04DNja7OvBlTvtl7SLc1FBv1A8/4Omj4
-# aDgoR/5tOxlGJfW0NYG/UH5mZIcYC7i+r0o9tl3K3oKwq+oWfgnim0XQqHD/3/o9
-# EfsayIvMWJqTuJbvfR7PJA375n+6vhB3VaxtNwf/z4ub9vNbh3YOjeC4tw==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUJ/WrGY+PtD+H+ay1
+# z731lBPnAIEwDQYJKoZIhvcNAQEBBQAEggEATC4bp4OlN1LHi0KTjjRh7EJDH1EH
+# xAbjjyYMoEuUhw6GfGhUQD+toST777Pv4Ja8Rnxa30x3/z9e1cPFZ3h3SsYnQ9pY
+# sftgHwJ8sOx/jIv3Zr0HmukPPlCIYNN5wMueIgoXaZhIClkXNFGtPUpFD7qSWsV1
+# OCBw9c2TGV5adEeCfmigWSf+StREclz1VF7zfULlaZteB+NCeUb8wUTCB9JIucOz
+# NZUh1e6azSmAvqJ7U6rs1BWzw82O5HbDICyR0f495zpiYrgKXe5NUTzVKc88fuP3
+# 17bJnoRdCVnbwP85L4bIs3++OTQGJg8aUeunbL2AWNdtyQBJkrBfNglMsA==
 # SIG # End signature block
