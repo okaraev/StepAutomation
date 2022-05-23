@@ -101,9 +101,11 @@ class Operation{
             }
         }
     }
+    # Returs all the methods implemented in the module
     [hashtable] GetDefaultMethods(){
         return $this.DefaultMethods
     }
+    # Returns single method from runtime
     [System.Reflection.TypeInfo] GetMethod([string]$MethodName){
         if($null -ne $this.AllMethods[$MethodName]){
             return $this.AllMethods[$MethodName]
@@ -111,6 +113,7 @@ class Operation{
             throw "Cannot find the Method with name $MethodName"
         }
     }
+    # Returns all the methods both implemented in the module and extended in runtime
     [hashtable] GetMethods(){
         return $this.AllMethods
     }
@@ -129,6 +132,7 @@ class Operation{
     SetStep([Step[]]$Steps){
         $this.Steps = [Step[]]$Steps
     }
+    # Starts executing all the steps
     StartSteps(){
         for($i = 0;$i -lt $this.Steps.Count; $i++){
             $this.SetStep($this.Steps[$i].Step)
@@ -147,6 +151,7 @@ class Operation{
             }
         }
     }
+    # Starts executing all the steps with exchange context
     StartSteps([System.Object]$Context){
         for($i = 0;$i -lt $this.Steps.Count; $i++){
             $this.SetStep($this.Steps[$i].Step)
@@ -166,6 +171,7 @@ class Operation{
             }
         }
     }
+    # Starts executing a single step
     StartStep([Step]$Step){
         Try{
             $Method = $this.GetMethod($Step.Operation)::New()
@@ -181,6 +187,7 @@ class Operation{
             throw $_
         }
     }
+    # Starts executing a single step with exchange context
     StartStep([Step]$Step,[System.Object]$Context){
         Try{
             $Method = $this.GetMethod($Step.Operation)::New()
@@ -249,6 +256,7 @@ class WebOperation : Operation {
             throw $_
         }
     }
+    # Starts browser and its driver and assings driver state to the exchange context
     StartDriver([System.Object]$DriverContext){
         if(!$this.isDriverStarted){
             Try {
@@ -275,6 +283,7 @@ class WebOperation : Operation {
             throw "Driver already started"
         }
     }
+    # Closes all the windows but main window
     Clear(){
 		if($this.isDriverStarted){
             foreach($win in $this.WebDriver.WindowHandles){
@@ -287,6 +296,7 @@ class WebOperation : Operation {
             [void]$this.WebDriver.SwitchTo().Window($this.MainWindow)
         }
     }
+    # Closes browser, its driver and cleans browser temporary directory
     Close(){
         foreach($win in $this.WebDriver.WindowHandles){
             [void]$this.WebDriver.SwitchTo().Window($win)
