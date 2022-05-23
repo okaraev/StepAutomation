@@ -456,7 +456,7 @@ class Click : Method {
         $Step = $Arguments.Step
         $Context = $Arguments.Context
         if($null -eq $Context.Driver.WebDriver){
-            throw "Cannot find Driver Context. Make sure that Context argument was added when Starting Steps"
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
         }
         $WebDriver = $Context.Driver.WebDriver
         Try{
@@ -472,12 +472,70 @@ class Click : Method {
     }
 }
 
+class AddText : Method {
+    AddText()
+    : base('AddText',$this.myFunction){
+    }
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            $element = [element]::GetOne($WebDriver,$Step.Value)
+        }catch{
+            throw $_
+        }
+        Try{
+            $element.SendKeys($Step.Source)
+        }catch{
+            throw $_
+        }
+    }
+}
+
+class SetText : Method {
+    SetText()
+    : base('SetText',$this.myFunction){
+    }
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            $element = [element]::GetOne($WebDriver,$Step.Value)
+        }catch{
+            throw $_
+        }
+        Try{
+            $element.Clear()
+            $element.SendKeys($Step.Source)
+        }catch{
+            throw $_
+        }
+    }
+}
 
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUJXVR1VtdubjS9Sh7HrTTgenX
-# d6+gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQULah09l8L+au4fiJKZw4HRX02
+# J4ugggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -496,11 +554,11 @@ class Click : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUJ/WrGY+PtD+H+ay1
-# z731lBPnAIEwDQYJKoZIhvcNAQEBBQAEggEATC4bp4OlN1LHi0KTjjRh7EJDH1EH
-# xAbjjyYMoEuUhw6GfGhUQD+toST777Pv4Ja8Rnxa30x3/z9e1cPFZ3h3SsYnQ9pY
-# sftgHwJ8sOx/jIv3Zr0HmukPPlCIYNN5wMueIgoXaZhIClkXNFGtPUpFD7qSWsV1
-# OCBw9c2TGV5adEeCfmigWSf+StREclz1VF7zfULlaZteB+NCeUb8wUTCB9JIucOz
-# NZUh1e6azSmAvqJ7U6rs1BWzw82O5HbDICyR0f495zpiYrgKXe5NUTzVKc88fuP3
-# 17bJnoRdCVnbwP85L4bIs3++OTQGJg8aUeunbL2AWNdtyQBJkrBfNglMsA==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUZgUskydcnJkCAkc0
+# BXns+792R5QwDQYJKoZIhvcNAQEBBQAEggEAZ5jVW45IkGZ96w+bMBaidjXyWamO
+# PzNT5ChgsoxkH41mQ7KcU9oLaOKTQD/Uo1O8dPwrJTrVWUzxUoYf+eqrciSiOPog
+# rYBKXZ+rVJHkMnpremaMyyTVkauIbdOG5hJgoGbo9XfA1ZDIlPPhgiOpNLEuDikM
+# PiWyYqN14e0IC33MQ1snjwi3sMVmTVsu1QOjJrHvTwkio84nDizvwLLOKUkSsQsr
+# B+LXn9td3aMBiWhBrsmLHVfqdWRa+gAmxQfnO7VuMbepOGUxp5jtYJSmhXGwiPCG
+# kfrq4erFwC3MQ6WGEYeXt5tu3Be+smLqfKgNoij6PbixW1n/7VGlKpZuMA==
 # SIG # End signature block
