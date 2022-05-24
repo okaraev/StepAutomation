@@ -66,31 +66,46 @@ class DriverConfig {
 
 class Operation{
     hidden [Step[]] $Steps
-    hidden [hashtable] $DefaultMethods
-    hidden [hashtable] $AllMethods
+    hidden [hashtable] $DefaultMethods = @{}
+    hidden [hashtable] $AllMethods = @{}
     hidden [int] $CurrentStep = 1
     Operation([Step[]]$Steps){
         $this.Steps = $Steps
-        $this.DefaultMethods = @{}
-        $this.AllMethods = @{}
-        if($Global:PSVersionTable.PSEdition -eq "Core"){
-            $Assemblies = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {$_.FullName -match 'Powershell Class Assembly'}
-            $defAssembly = $Assemblies[0]
-        }else{
-            $Assemblies = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {$_.FullName -match 'ps1' -or $_.FullName -match 'powershell, version=0' -or $_.FullName -match 'psm1'}
-            $defAssembly = $Assemblies | Where-Object {$_.FullName -match 'psm1'}
+        $this.CollectMethods()
+    }
+    hidden CollectMethods(){
+        $Assemblies = [System.Collections.ArrayList]::new()
+        foreach($ass in [AppDomain]::CurrentDomain.GetAssemblies()){
+            if($Global:PSVersionTable.PSEdition -eq "Core" -and $ass.FullName -match 'Powershell Class Assembly'){
+                if($ass.CustomAttributes.NamedArguments.TypedValue.Value -match 'psm1'){
+                    $ass | Add-Member -NotePropertyName isDefault -NotePropertyValue $true -Force
+                }
+                [void]$Assemblies.Add($ass)
+            }
+            elseif($ass.FullName -match 'ps1' -or $ass.FullName -match 'powershell, version=0' -or $ass.FullName -match 'psm1'){
+                if($ass.FullName -match 'psm1'){
+                    $ass | Add-Member -NotePropertyName isDefault -NotePropertyValue $true -Force
+                }
+                [void]$Assemblies.Add($ass)
+            }
         }
-        foreach($ChildClass in $defAssembly.GetTypes() | Where-Object {$_.BaseType -eq [Method]}){
-            $this.DefaultMethods[$ChildClass.Name] = $ChildClass
-            $this.AllMethods[$ChildClass.Name] = $ChildClass
-        }
-        foreach($ChildClass in $Assemblies.GetTypes() | Where-Object {$_.BaseType -eq [Method]}){
-            $this.AllMethods[$ChildClass.Name] = $ChildClass
+
+        foreach($ass in $Assemblies){
+            foreach($ChildClass in $ass.Gettypes()){
+                if($ChildClass.BaseType -eq [Method]){
+                    if($ass.isDefault){
+                        $this.DefaultMethods[$ChildClass.Name] = $ChildClass
+                    }
+                    $this.AllMethods[$ChildClass.Name] = $ChildClass
+                }
+            }
         }
     }
+    # Returs all the methods implemented in the module
     [hashtable] GetDefaultMethods(){
         return $this.DefaultMethods
     }
+    # Returns single method from runtime
     [System.Reflection.TypeInfo] GetMethod([string]$MethodName){
         if($null -ne $this.AllMethods[$MethodName]){
             return $this.AllMethods[$MethodName]
@@ -98,6 +113,7 @@ class Operation{
             throw "Cannot find the Method with name $MethodName"
         }
     }
+    # Returns all the methods both implemented in the module and extended in runtime
     [hashtable] GetMethods(){
         return $this.AllMethods
     }
@@ -116,6 +132,7 @@ class Operation{
     SetStep([Step[]]$Steps){
         $this.Steps = [Step[]]$Steps
     }
+    # Starts executing all the steps
     StartSteps(){
         for($i = 0;$i -lt $this.Steps.Count; $i++){
             $this.SetStep($this.Steps[$i].Step)
@@ -134,6 +151,7 @@ class Operation{
             }
         }
     }
+    # Starts executing all the steps with exchange context
     StartSteps([System.Object]$Context){
         for($i = 0;$i -lt $this.Steps.Count; $i++){
             $this.SetStep($this.Steps[$i].Step)
@@ -153,6 +171,7 @@ class Operation{
             }
         }
     }
+    # Starts executing a single step
     StartStep([Step]$Step){
         Try{
             $Method = $this.GetMethod($Step.Operation)::New()
@@ -168,6 +187,7 @@ class Operation{
             throw $_
         }
     }
+    # Starts executing a single step with exchange context
     StartStep([Step]$Step,[System.Object]$Context){
         Try{
             $Method = $this.GetMethod($Step.Operation)::New()
@@ -189,6 +209,7 @@ class Operation{
 class WebOperation : Operation {
     hidden [DriverConfig] $Configuration
     hidden [Decimal] $DriverPort
+    hidden [Decimal] $DebugPort = 0
     hidden [String] $BrowserTempFolder
     hidden [bool] $BackroundProcess
     hidden [string] $MainWindow
@@ -201,43 +222,48 @@ class WebOperation : Operation {
         $this.BrowserTempFolder = $BrowserTempFolder
         $this.BackroundProcess = $Backround
     }
-    StartDriver([System.Object]$DriverContext){
-        if(!$this.isDriverStarted){
-            if(!(Test-Path $this.BrowserTempFolder)){
-                Try{
-                    New-Item -ItemType Directory $this.BrowserTempFolder -ErrorAction Stop
-                }catch{
-                    throw "Cannot Create Directory $($this.BrowserTempFolder) $($_.exception.message)"   
-                }
-            }
-            if($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
-                Try{
-                    $script:myDriverPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
-                }catch{
-                    throw $_
-                }
-            }
-            $DebugPort = 0
-            while($true){
-                $DebugPort = Get-Random -Minimum 65000 -Maximum 65500
-                if($DebugPort -notin (Get-NetTCPConnection).LocalPort){
-                    break
-                }
-            }
+    hidden StartBrowserDriver(){
+        if($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
             Try{
-                if($this.BackroundProcess){
-                    $script:chromeProcess = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList `
-                    "about:blank --remote-debugging-port=$DebugPort --user-data-dir=$($this.BrowserTempFolder) --headless --disable-extensions --disable-gpu" -ErrorAction Stop -PassThru
-                }else{
-                    $script:chromeProcess = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList `
-                    "about:blank --remote-debugging-port=$DebugPort --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu" -ErrorAction Stop -PassThru
-                }
+                $script:myDriverPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
             }catch{
                 throw $_
             }
+        }
+    }
+    hidden StartBrowser(){
+        if(!(Test-Path $this.BrowserTempFolder)){
+            Try{
+                New-Item -ItemType Directory $this.BrowserTempFolder -ErrorAction Stop
+            }catch{
+                throw $_   
+            }
+        }
+        while($true){
+            $this.DebugPort = Get-Random -Minimum 65000 -Maximum 65500
+            if($this.DebugPort -notin (Get-NetTCPConnection).LocalPort){
+                break
+            }
+        }
+        Try{
+            if($this.BackroundProcess){
+                $chromeArgs = "about:blank --remote-debugging-port=$($this.DebugPort) --user-data-dir=$($this.BrowserTempFolder) --headless --disable-extensions --disable-gpu"
+            }else{
+                $chromeArgs = "about:blank --remote-debugging-port=$($this.DebugPort) --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu"
+            }
+            $script:chromeProcess = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList $chromeArgs -ErrorAction Stop -PassThru
+        }catch{
+            throw $_
+        }
+    }
+    # Starts browser and its driver and assings driver state to the exchange context
+    StartDriver([System.Object]$DriverContext){
+        if(!$this.isDriverStarted){
             Try {
+                $this.StartBrowserDriver()
+                $this.StartBrowser()
                 $options = [OpenQA.Selenium.Chrome.ChromeOptions]::new()
-                $options.DebuggerAddress = "127.0.0.1:$DebugPort"
+                $options.DebuggerAddress = "127.0.0.1:$($this.DebugPort)"
                 $this.WebDriver = [OpenQA.Selenium.Remote.RemoteWebDriver]::New("http://localhost:$($this.DriverPort)",$options)
                 $this.MainWindow = $this.WebDriver.WindowHandles
                 $property = [PSCustomObject]@{
@@ -257,6 +283,7 @@ class WebOperation : Operation {
             throw "Driver already started"
         }
     }
+    # Closes all the windows but main window
     Clear(){
 		if($this.isDriverStarted){
             foreach($win in $this.WebDriver.WindowHandles){
@@ -269,6 +296,7 @@ class WebOperation : Operation {
             [void]$this.WebDriver.SwitchTo().Window($this.MainWindow)
         }
     }
+    # Closes browser, its driver and cleans browser temporary directory
     Close(){
         foreach($win in $this.WebDriver.WindowHandles){
             [void]$this.WebDriver.SwitchTo().Window($win)
@@ -401,11 +429,168 @@ class Frame : Method {
     }
 }
 
+class ToFrame : Method{
+    ToFrame()
+    : base('ToFrame',$this.myFunction){}
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            [void]$WebDriver.SwitchTo().Frame($Step.Value)
+        }catch{
+            throw $_
+        }
+    }
+}
+
+class FromFrame : Method{
+    FromFrame()
+    : base('FromFrame',$this.myFunction){}
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            [void]$WebDriver.SwitchTo().ParentFrame()
+        }catch{
+            throw $_
+        }
+    }
+}
+
+class Navigate : Method {
+    Navigate()
+    : base('Navigate',$this.myFunction){
+    }
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            $WebDriver.Navigate().GotoURL($Step.Value)
+        }catch{
+            throw $_
+        }
+    }
+}
+
+class Click : Method {
+    Click()
+    : base('Click',$this.myFunction){
+    }
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            $element = [element]::GetOne($WebDriver,$Step.Value)
+        }catch{
+            throw $_
+        }
+        Try{
+            $element.Click()
+        }catch{
+            throw $_
+        }
+    }
+}
+
+class AddText : Method {
+    AddText()
+    : base('AddText',$this.myFunction){
+    }
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            $element = [element]::GetOne($WebDriver,$Step.Value)
+        }catch{
+            throw $_
+        }
+        Try{
+            $element.SendKeys($Step.Source)
+        }catch{
+            throw $_
+        }
+    }
+}
+
+class SetText : Method {
+    SetText()
+    : base('SetText',$this.myFunction){
+    }
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            $element = [element]::GetOne($WebDriver,$Step.Value)
+        }catch{
+            throw $_
+        }
+        Try{
+            $element.Clear()
+            $element.SendKeys($Step.Source)
+        }catch{
+            throw $_
+        }
+    }
+}
+
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU/whK00sYyYyvv9qZW3/eMghC
-# Hg+gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUPeN94OqNXFIlb8huFwnB+5lV
+# Ib2gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -424,11 +609,11 @@ class Frame : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUPGtAnR6HPVj9TDpA
-# EGsjQLu4J2EwDQYJKoZIhvcNAQEBBQAEggEAnv2DKESIZqBc4zp7rBp2o8MvX3KK
-# KN+Iw5RC894Tql4GiZv8nOBexqdZGUtZg0hPbvbWQMT3aJCFKqfrexQRKvQCcivz
-# Fcf6QbuOnJ0XKPbKqU8YXU/LmvoULitGXHSZrzjbDIlVxVFnOCTpW+wQzYZCWCew
-# dABBIiNu0TVXgK5mMDnTnsFyQf32DILOV6NgnWkWItcIbVPa9tYcztxqtdnm43jY
-# fTmo5BXUDBGpKowRvYvg8PW+OgxcmEs4TS/LzBxVEBRz829p5SKTmyKH//qARU5/
-# uE6MGERZJEQzmCKFPWHhKLSUgIzW/Vocgglu3kWUAH2djgYtsYGvVMi7Qw==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUb7sXSXbig83c+N9N
+# BCh8giAqfjUwDQYJKoZIhvcNAQEBBQAEggEAZcyIjLlKphXbPkz3iDYw29f7zG8E
+# 2+Bvt2hfHvHo8UBaF4adszj7r4wbDTFmUEOvmNhkHu4srDRF9ZwiTBM6yTnw1//C
+# 1+W7VeXfTg4HDE3VUr8YvNQvA9dNxt1GG4J9VMSuVDh2LfN3EBYZn6GHg3Prsf+v
+# 6xWqYcXABpEzlj1ErIah4H5RxXqETe/RoI3MoFvkeTDp8udmKAWC7WTgD1UbFjlC
+# 6YXJDoW9VUpHK4AMiEXFUc4ts1SWYBCD8DATLWXC171sylF23nXK0lrMel5/F9Va
+# KSx8PHYrreJedZykH+IkfwCNklAXNAZNuCV9PK2S8S3VV5cFu9C3tq7bTg==
 # SIG # End signature block
