@@ -429,6 +429,51 @@ class Frame : Method {
     }
 }
 
+class ToFrame : Method{
+    ToFrame()
+    : base('ToFrame',$this.myFunction){}
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Step = $Arguments.Step
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            [void]$WebDriver.SwitchTo().Frame($Step.Value)
+        }catch{
+            throw $_
+        }
+    }
+}
+
+class FromFrame : Method{
+    FromFrame()
+    : base('FromFrame',$this.myFunction){}
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        $Context = $Arguments.Context
+        if($null -eq $Context.Driver.WebDriver){
+            throw "Cannot find Driver Context. Make sure that a Context argument was added when Starting Steps"
+        }
+        $WebDriver = $Context.Driver.WebDriver
+        Try{
+            [void]$WebDriver.SwitchTo().ParentFrame()
+        }catch{
+            throw $_
+        }
+    }
+}
+
 class Navigate : Method {
     Navigate()
     : base('Navigate',$this.myFunction){
@@ -544,8 +589,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQULah09l8L+au4fiJKZw4HRX02
-# J4ugggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUPeN94OqNXFIlb8huFwnB+5lV
+# Ib2gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -564,11 +609,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUZgUskydcnJkCAkc0
-# BXns+792R5QwDQYJKoZIhvcNAQEBBQAEggEAZ5jVW45IkGZ96w+bMBaidjXyWamO
-# PzNT5ChgsoxkH41mQ7KcU9oLaOKTQD/Uo1O8dPwrJTrVWUzxUoYf+eqrciSiOPog
-# rYBKXZ+rVJHkMnpremaMyyTVkauIbdOG5hJgoGbo9XfA1ZDIlPPhgiOpNLEuDikM
-# PiWyYqN14e0IC33MQ1snjwi3sMVmTVsu1QOjJrHvTwkio84nDizvwLLOKUkSsQsr
-# B+LXn9td3aMBiWhBrsmLHVfqdWRa+gAmxQfnO7VuMbepOGUxp5jtYJSmhXGwiPCG
-# kfrq4erFwC3MQ6WGEYeXt5tu3Be+smLqfKgNoij6PbixW1n/7VGlKpZuMA==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUb7sXSXbig83c+N9N
+# BCh8giAqfjUwDQYJKoZIhvcNAQEBBQAEggEAZcyIjLlKphXbPkz3iDYw29f7zG8E
+# 2+Bvt2hfHvHo8UBaF4adszj7r4wbDTFmUEOvmNhkHu4srDRF9ZwiTBM6yTnw1//C
+# 1+W7VeXfTg4HDE3VUr8YvNQvA9dNxt1GG4J9VMSuVDh2LfN3EBYZn6GHg3Prsf+v
+# 6xWqYcXABpEzlj1ErIah4H5RxXqETe/RoI3MoFvkeTDp8udmKAWC7WTgD1UbFjlC
+# 6YXJDoW9VUpHK4AMiEXFUc4ts1SWYBCD8DATLWXC171sylF23nXK0lrMel5/F9Va
+# KSx8PHYrreJedZykH+IkfwCNklAXNAZNuCV9PK2S8S3VV5cFu9C3tq7bTg==
 # SIG # End signature block
