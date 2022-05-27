@@ -26,7 +26,7 @@ pipeline {
         stage('Tests'){
             steps{
                 script{
-                    sh "pwsh -c 'Get-ChildItem -recurse'"
+                    bat 'pwsh ./Tests.ps1'
                 }
             }
         }
