@@ -56,20 +56,20 @@ $localSite = "http://localhost:65158/"
 $ps = [powershell]::Create()
 $ps.Runspace.SessionStateProxy.SetVariable('url',$localSite)
 [void]$ps.AddScript{
-    $http = [System.Net.HttpListener]::new()
+    $http = [System.Net.HttpListener]::new() 
     $http.Prefixes.Add($url)
     $http.Start()
     while($http.IsListening){
         $context = $http.GetContext()
-        if($context.Request.RawUrl -eq '/'){
+        if ($context.Request.HttpMethod -eq 'GET' -and ($context.Request.RawUrl -eq '/' -or $context.Request.RawUrl -eq '/some/post')) {
             [string]$html = "
             <h1>A Powershell Webserver</h1>
             <form action='/some/post' method='post'>
                 <p>A Basic Form</p>
                 <p>fullname</p>
                 <input type='text' name='fullname'>
-                <p>text_message</p>
-                <textarea rows='4' cols='50' name='text_message'></textarea>
+                <p>message</p>
+                <textarea rows='4' cols='50' name='message'></textarea>
                 <br>
                 <input type='submit' value='Submit'>
             </form>
@@ -78,6 +78,27 @@ $ps.Runspace.SessionStateProxy.SetVariable('url',$localSite)
             $context.Response.ContentLength64 = $buffer.Length
             $context.Response.OutputStream.Write($buffer, 0, $buffer.Length) 
             $context.Response.OutputStream.Close()
+        }elseif ($context.Request.HttpMethod -eq 'POST' -and $context.Request.RawUrl -eq '/some/post') {
+            $FormContent = [System.IO.StreamReader]::new($context.Request.InputStream).ReadToEnd()
+            if($FormContent -match '&message=(?<message>\w+)'){
+                $message = $Matches.message
+            }
+            [string]$html = "
+            <h1>A Powershell Webserver</h1>
+            <form action='/some/post' method='post'>
+                <p>A Basic Form</p>
+                <p>fullname</p>
+                <input type='text' name='fullname'>
+                <p>message</p>
+                <textarea rows='4' cols='50' name='message'>$message</textarea>
+                <br>
+                <input type='submit' value='Submit'>
+            </form>
+            "
+            $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
+            $context.Response.ContentLength64 = $buffer.Length
+            $context.Response.OutputStream.Write($buffer, 0, $buffer.Length)
+            $context.Response.OutputStream.Close() 
         }elseif($context.Request.RawUrl -eq '/close'){
             $HttpResponse = $context.Response
             $HttpResponse.Headers.Add("Content-Type","text/plain")
@@ -89,7 +110,7 @@ $ps.Runspace.SessionStateProxy.SetVariable('url',$localSite)
             Break
         }
     }
-    $http.Stop()
+    $http.Stop() 
     $http.Close()
 }
 
@@ -99,7 +120,9 @@ $Context2 = [PSCustomObject]@{
 }
 [void]$ps.BeginInvoke()
 $WebSteps = [Step]::new('Navigate','Open webSite',1,$localSite,$null),`
-[Step]::new('GetValue','Get predefined Value',2,'/html/body/form/p[3]',$null)
+[Step]::new('SetText','Insert Text',2,'/html/body/form/textarea','okaraev'),`
+[Step]::new('Click','Submit Click',3,'/html/body/form/input[2]',$null),`
+[Step]::new('GetValue','Get predefined Value',4,'/html/body/form/textarea',$null)
 
 
 Describe "Method Class" {
@@ -238,7 +261,37 @@ Describe "WebOperation Class"{
             }finally{
                 $webOperation.Close()
             }
-            $Context2.Value | Should -Be "text_message"
+            $Context2.Value | Should -Be "okaraev"
+        }
+    }
+
+    Context "SetText and AddText Method Test"{
+        It "Should set and add text"{
+            Try{
+                Start-Sleep -Seconds 1
+                $webOperation = [WebOperation]::New($driverConf,$WebSteps,58888,"D:\chromedata",$true)
+                $webOperation.StartDriver($Context2)
+            }catch{
+                $myErr = $_
+            }
+            $myErr | Should -Be $null
+
+            Try{
+                $webOperation.StartSteps($Context2)
+            }catch{
+                $myErr = $_
+            }
+            $Context2.Value | Should -Be "okaraev"
+            
+            $WebSteps[1].Operation = "AddText"
+            $webOperation.SetStep($WebSteps)
+            Try{
+                $webOperation.SetCurrentStep(2)
+                $webOperation.StartSteps($Context2)
+            }catch{
+                $myErr = $_
+            }
+            $Context2.Value | Should -Be "okaraevokaraev"
         }
     }
 }
