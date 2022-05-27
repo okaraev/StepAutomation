@@ -1,9 +1,3 @@
-def commitTag(){
-    sh(
-        script: 'git tag --contains $(git rev-parse HEAD)',
-        returnStdout: true
-    ).trim()
-}
 pipeline {
     agent{
         label 'windows'
@@ -39,7 +33,20 @@ pipeline {
                 script{
                     powershell(returnStdout: true, script: '''
                         using module ./StepAutomation.psd1
-                        Write-Host (Get-Module StepAutomation).Version.ToString()
+                        $gitTag = git tag --contains $(git rev-parse HEAD^)
+                        if($null -ne $gitTag){
+                            if([System.Version]$gitTag -eq (Get-Module StepAutomation).Version){
+                                Try{
+                                    Publish-Module -Path './' -NuGetApiKey 'oy2iwd3zy5jsxepgsa6qjaxfkrxxwmmuhlucdm3nhz5hca' -Repository PSGallery -ErrorAction Stop
+                                }catch{
+                                    throw $_
+                                }
+                            }else{
+                                Write-Host Git Tag version is not equal with current version, Skipping Publish Stage
+                            }
+                        }else{
+                            Write-Host Git Tag is null, Skipping Publish Stage
+                        }
                     ''')
                 }
             }
