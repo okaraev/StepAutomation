@@ -117,7 +117,7 @@ class Operation{
     [hashtable] GetMethods(){
         return $this.AllMethods
     }
-    SetStep([int]$Step){
+    SetCurrentStep([int]$Step){
         $this.CurrentStep = $Step
     }
     [int]GetCurrentStep(){
@@ -135,7 +135,10 @@ class Operation{
     # Starts executing all the steps
     StartSteps(){
         for($i = 0;$i -lt $this.Steps.Count; $i++){
-            $this.SetStep($this.Steps[$i].Step)
+            if($this.Steps[$i].Step -lt $this.GetCurrentStep()){
+                continue
+            }
+            $this.SetCurrentStep($this.Steps[$i].Step)
             Try{
                 $Method = $this.GetMethod($this.Steps[$i].Operation)::New()
             }catch{
@@ -154,7 +157,10 @@ class Operation{
     # Starts executing all the steps with exchange context
     StartSteps([System.Object]$Context){
         for($i = 0;$i -lt $this.Steps.Count; $i++){
-            $this.SetStep($this.Steps[$i].Step)
+            if($this.Steps[$i].Step -lt $this.GetCurrentStep()){
+                continue
+            }
+            $this.SetCurrentStep($this.Steps[$i].Step)
             Try{
                 $Method = $this.GetMethod($this.Steps[$i].Operation)::New()
             }catch{
@@ -589,8 +595,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUPeN94OqNXFIlb8huFwnB+5lV
-# Ib2gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUXEU/U8QNmd1rh7KKnXXVzYD8
+# 5a+gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -609,11 +615,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUb7sXSXbig83c+N9N
-# BCh8giAqfjUwDQYJKoZIhvcNAQEBBQAEggEAZcyIjLlKphXbPkz3iDYw29f7zG8E
-# 2+Bvt2hfHvHo8UBaF4adszj7r4wbDTFmUEOvmNhkHu4srDRF9ZwiTBM6yTnw1//C
-# 1+W7VeXfTg4HDE3VUr8YvNQvA9dNxt1GG4J9VMSuVDh2LfN3EBYZn6GHg3Prsf+v
-# 6xWqYcXABpEzlj1ErIah4H5RxXqETe/RoI3MoFvkeTDp8udmKAWC7WTgD1UbFjlC
-# 6YXJDoW9VUpHK4AMiEXFUc4ts1SWYBCD8DATLWXC171sylF23nXK0lrMel5/F9Va
-# KSx8PHYrreJedZykH+IkfwCNklAXNAZNuCV9PK2S8S3VV5cFu9C3tq7bTg==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUfujbuBa3N8Hkfc+y
+# JpnJMWiODA8wDQYJKoZIhvcNAQEBBQAEggEAHAPapXnOH3x5ajdPTwB+qGrb1n2g
+# 4v0QV1/RrklbI8W3Cs41lycfrlMKrpVbIq3yjjVvOcc+rw3X9osUZTC3vGHJTixQ
+# WhKVLXLU0zgviby7LdC0zNBYh8pycFa9VaT70f/ocdDwDoo4u4+aIDjf8xk3bMFp
+# TuTybtwBGmxJIY081vrApOBmcMYeWl2A/CXkAqEHpIs2p0D7wv89lgDjGxzuzTai
+# mqzI27Y/IrXTK0ZgnMnvUDZwgq6ekcXKX6WryFuf8RDjyeYmyX87O84YZiTBsVmv
+# 7JzxeBKe416bdJkRtx7r+AxfR0EYmhrhzV0SkuIQ2Q7vPOCTsS7yK2qYxw==
 # SIG # End signature block
