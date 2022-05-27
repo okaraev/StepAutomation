@@ -27,7 +27,7 @@ if($null -ne $PSGalleryVersion){
     if($PSGalleryVersion -lt $localVersion){
         Try{
             write-host ${secret}
-            Publish-Module StepAutomation -NuGetApiKey $Secret -Repository PSGallery -Force -Confirm:$False -ErrorAction Stop
+            Publish-Module -Name StepAutomation -NuGetApiKey $Secret -Repository PSGallery -Force -Confirm:$False -ErrorAction Stop
             Write-Host Module Version Updated to $localVersion
         }catch{
             throw $_
