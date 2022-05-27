@@ -32,8 +32,8 @@ pipeline {
             steps{
                 script{
                     powershell(returnStdout: true, script: '''
-                        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
                         using module ./StepAutomation.psd1
+                        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
                         Try {
                             $PSGalleryVersion = Find-Module StepAutomation -ErrorAction Stop | Select-Object -ExpandProperty Version
                         } catch {
