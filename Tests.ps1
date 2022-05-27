@@ -201,6 +201,7 @@ Describe "WebOperation Class"{
     Context "Starting Steps without Context"{
         It "Should return Exception about context"{
             Try{
+                Start-Sleep -Seconds 1
                 $webOperation = [WebOperation]::New($driverConf,$WebSteps,58888,"D:\chromedata",$true)
                 $webOperation.StartDriver($Context2)
             }catch{
@@ -222,6 +223,7 @@ Describe "WebOperation Class"{
     Context "Starting Steps with Context"{
         It "Should change the context value"{
             Try{
+                Start-Sleep -Seconds 1
                 $webOperation = [WebOperation]::New($driverConf,$WebSteps,58888,"D:\chromedata",$true)
                 $webOperation.StartDriver($Context2)
             }catch{
