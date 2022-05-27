@@ -42,6 +42,7 @@ pipeline {
                         }catch{
                             Throw $_
                         }
+                        
                         Try {
                             $PSGalleryVersion = Find-Module StepAutomation -ErrorAction Stop | Select-Object -ExpandProperty Version
                         } catch {
