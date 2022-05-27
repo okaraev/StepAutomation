@@ -26,7 +26,21 @@ pipeline {
         stage('Tests'){
             steps{
                 script{
-                    bat 'pwsh ./Tests.ps1'
+                    powershell(returnStdout: true,script: '''
+                    ./Tests.ps1
+                    Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+                    ''')
+                }
+            }
+        }
+
+        stage('Publish'){
+            steps{
+                script{
+                    powershell(returnStdout: true, script: '''
+                        using module ./StepAutomation.psd1
+                        Write-Host (Get-Module StepAutomation).Version.ToString()
+                    ''')
                 }
             }
         }
