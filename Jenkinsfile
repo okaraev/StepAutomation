@@ -33,19 +33,39 @@ pipeline {
                 script{
                     powershell(returnStdout: true, script: '''
                         using module ./StepAutomation.psd1
-                        $gitTag = git tag --contains $(git rev-parse HEAD^)
-                        if($null -ne $gitTag){
-                            if([System.Version]$gitTag -eq (Get-Module StepAutomation).Version){
+                        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                        Try{
+                            if((Get-PackageProvider).Name -notcontains "NuGet"){
+                                $installResult = Install-PackageProvider -Name NuGet -Force -Confirm:$false -ErrorAction Stop
+                                Write-Host Installed NuGet Version $($installResult.Version.ToString())
+                            }
+                        }catch{
+                            Throw $_
+                        }
+                        
+                        Try {
+                            $PSGalleryVersion = Find-Module StepAutomation -ErrorAction Stop | Select-Object -ExpandProperty Version
+                        } catch {
+                            Throw "Cannot get Module info from PSGallery; $($_.Exception.Message)"
+                        }
+                        Try{
+                            $localVersion = Get-Module StepAutomation -ErrorAction Stop | Select-Object -ExpandProperty Version
+                        } catch{
+                            Throw "Cannot get local Module info; $($_.Exception.Message)"
+                        }
+                        if($null -ne $PSGalleryVersion){
+                            if($PSGalleryVersion -lt $localVersion){
                                 Try{
                                     Publish-Module -Path './' -NuGetApiKey 'oy2iwd3zy5jsxepgsa6qjaxfkrxxwmmuhlucdm3nhz5hca' -Repository PSGallery -ErrorAction Stop
+                                    Write-Host Module Version Updated to $localVersion
                                 }catch{
                                     throw $_
                                 }
                             }else{
-                                Write-Host Git Tag version is not equal with current version, Skipping Publish Stage
+                                Write-Host PSGallery version is equal with current version $localVersion, Skipping Publish Stage
                             }
                         }else{
-                            Write-Host Git Tag is null, Skipping Publish Stage
+                            Throw "PSGallery Version is null"
                         }
                     ''')
                 }
