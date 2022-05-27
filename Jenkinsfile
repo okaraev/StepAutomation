@@ -56,7 +56,7 @@ pipeline {
                         if($null -ne $PSGalleryVersion){
                             if($PSGalleryVersion -lt $localVersion){
                                 Try{
-                                    Publish-Module -Path './' -NuGetApiKey 'oy2iwd3zy5jsxepgsa6qjaxfkrxxwmmuhlucdm3nhz5hca' -Repository PSGallery -ErrorAction Stop
+                                    Publish-Module -Path StepAutomation -NuGetApiKey 'oy2iwd3zy5jsxepgsa6qjaxfkrxxwmmuhlucdm3nhz5hca' -Repository PSGallery -Force -Confirm:$False -ErrorAction Stop
                                     Write-Host Module Version Updated to $localVersion
                                 }catch{
                                     throw $_
