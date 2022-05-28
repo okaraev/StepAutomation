@@ -216,6 +216,10 @@ Describe "WebOperation Class"{
                 $webOperation.StartDriver($Context2)
             }catch{
                 $myErr = $_
+            }finally{
+                if($null -eq $myErr){
+                    $webOperation.Close()
+                }
             }
             $myErr | Should -Be $null
         }
@@ -290,6 +294,8 @@ Describe "WebOperation Class"{
                 $webOperation.StartSteps($Context2)
             }catch{
                 $myErr = $_
+            }finally{
+                $webOperation.Close()
             }
             $Context2.Value | Should -Be "okaraevokaraev"
         }
