@@ -294,7 +294,7 @@ class WebOperation : Operation {
     }
     hidden CloseBrowser(){
         if($script:chromeProcess){
-            Stop-Process -Id $script:chromeProcess.Id -Force #-ErrorAction SilentlyContinue
+            Stop-Process -Id $script:chromeProcess.Id -Force -ErrorAction SilentlyContinue
         }
         if($Global:PSVersionTable.PSEdition -eq "Core"){
             Get-Process -Name chrome -ErrorAction SilentlyContinue | 
@@ -305,7 +305,7 @@ class WebOperation : Operation {
             Where-Object {$_.CommandLine -match "--remote-debugging-port=$($this.DebugPort)"}
             if($prs){
                 foreach($pr in $prs){
-                    Stop-Process -Id $pr.ProcessId -Force #-ErrorAction SilentlyContinue
+                    Stop-Process -Id $pr.ProcessId -Force -ErrorAction SilentlyContinue
                 }
             }
         }
@@ -643,8 +643,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU4qkCguoCFquHaeVqOf6wZ2zL
-# gwagggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU8kYi0vjs9ZqNqdIBG3fPZAUh
+# EOCgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -663,11 +663,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUQ1Nr31wusmk7oGmx
-# x2/p6cpPzRIwDQYJKoZIhvcNAQEBBQAEggEAAfzf+XJbmNjmlMjuD6ipjSIPWPz9
-# TabXl26UAkvo2GMxtJdtdC3CSfcp4+0h5w4cJprJCnueYLAfmBG0nEHVVQD6d1TB
-# L8hjyHzypHyvM648I67BX/V5xgxn3DK9yWwt+mTqidG+KQw3eYvqhvmYIhjzti20
-# AvVqw+vViTAVEY/V8Ti2ckMD/U4oP7/I0taamlA+BNRYeug5zKgQQIrR3lbdrSHS
-# oobCeXLOfR7ZuCUMXg8Hryxar60O3qqM11F7ttV6FaOtQFe6BaZ7XOywU+w9s2Zu
-# 79jla2XGSFdY0mvHOzcCMPeiPI+iqh9FDHF7k0EiMUoTohMbsbCG8CShkg==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUVL+WijbWH31CmdiZ
+# 0AP+WJvm2nUwDQYJKoZIhvcNAQEBBQAEggEAg5sF2NK1gB2uc6Y0fRJawDTL+Cuc
+# vWGcfz0X8Rpm/9Lsq20I9CEPkqhe6FofbqBmWY6t33eL73ATCUWPnOxzANJSyNVL
+# Sm/saFOAxW/dCQbVdYsNKjEzT7YXSGJeSIJaVl+F1ZhxEhOYeyHaXR7OFll8KIRC
+# Md/a1Fpt+7sFn07H/JudT8bcAHsuyx8KgPUr8yrZDNs63J58s42OcWBjdbkn3voz
+# CBw6MyGFvuNKwcdKfnfdo5EH/R8Bze+mXVgFMMVGD9PW1Hq1+HN2T0RH+kaPqCU8
+# yJ4CHoYmoNSu1TnftZOnRpyixhenr8EbrSSeSYjzIB5KkOsHUmljL9IT5A==
 # SIG # End signature block
