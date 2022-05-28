@@ -107,28 +107,32 @@ class Operation{
     }
     # Returns single method from runtime
     [System.Reflection.TypeInfo] GetMethod([string]$MethodName){
-        if($null -ne $this.AllMethods[$MethodName]){
-            return $this.AllMethods[$MethodName]
-        }else{
+        if($null -eq $this.AllMethods[$MethodName]){
             throw "Cannot find the Method with name $MethodName"
         }
+        return $this.AllMethods[$MethodName]
     }
     # Returns all the methods both implemented in the module and extended in runtime
     [hashtable] GetMethods(){
         return $this.AllMethods
     }
+    # Sets the current step number
     SetCurrentStep([int]$Step){
         $this.CurrentStep = $Step
     }
+    # Gets the current step number
     [int]GetCurrentStep(){
         return $this.CurrentStep
     }
+    # Returns All steps
     [Step[]]GetSteps(){
         return $this.Steps
     }
+    # Returns Single step
     [Step]GetStep([int]$Step){
         return $this.Steps | Where-Object {$_.Step -eq $Step}
     }
+    # Sets Steps
     SetStep([Step[]]$Steps){
         $this.Steps = [Step[]]$Steps
     }
@@ -228,16 +232,26 @@ class WebOperation : Operation {
         $this.BrowserTempFolder = $BrowserTempFolder
         $this.BackroundProcess = $Backround
     }
-    hidden StartBrowserDriver(){
+    hidden [System.Diagnostics.Process] StartBrowserDriver(){
         if($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
             Try{
-                $script:myDriverPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
+                $prPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
             }catch{
                 throw $_
             }
+        }else{
+            $prPID = Get-Process chromedriver | Select-Object -First 1
         }
+        return $prPID
     }
-    hidden StartBrowser(){
+    hidden [System.Diagnostics.Process] StartBrowser(){
+        for($i = 1;$i -lt 1000;$i++){
+            if(Test-Path "$($this.BrowserTempFolder)\$i"){
+                continue
+            }
+            $this.BrowserTempFolder = "$($this.BrowserTempFolder)\$i"
+            break
+        }
         if(!(Test-Path $this.BrowserTempFolder)){
             Try{
                 New-Item -ItemType Directory $this.BrowserTempFolder -ErrorAction Stop
@@ -257,17 +271,55 @@ class WebOperation : Operation {
             }else{
                 $chromeArgs = "about:blank --remote-debugging-port=$($this.DebugPort) --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu"
             }
-            $script:chromeProcess = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList $chromeArgs -ErrorAction Stop -PassThru
+            $brPID = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList $chromeArgs -ErrorAction Stop -PassThru
         }catch{
             throw $_
         }
+        return $brPID
+    }
+    hidden CloseBrowserDriver(){
+        if($script:myDriverPID){
+            Stop-Process -Id $script:myDriverPID.Id -Force -ErrorAction SilentlyContinue
+        }
+        if($Global:PSVersionTable.PSEdition -eq "Core"){
+            Get-Process -Name chromedriver -ErrorAction SilentlyContinue | Where-Object {$_.CommandLine -match "-port=$($this.DriverPort)"} |
+            Stop-Process -ErrorAction SilentlyContinue
+        }else{
+            $pr = Get-WmiObject -Query "select * from win32_process where Name = 'chromedriver.exe'" -ErrorAction SilentlyContinue | 
+            Where-Object {$_.CommandLine -match "-port=$($this.DriverPort)"}
+            if($pr){
+                Stop-Process -Id $pr.ProcessId -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    hidden CloseBrowser(){
+        if($script:chromeProcess){
+            Stop-Process -Id $script:chromeProcess.Id -Force #-ErrorAction SilentlyContinue
+        }
+        if($Global:PSVersionTable.PSEdition -eq "Core"){
+            Get-Process -Name chrome -ErrorAction SilentlyContinue | 
+            Where-Object {$_.CommandLine -match "--remote-debugging-port=$($this.DebugPort)"} |
+            Stop-Process -ErrorAction SilentlyContinue
+        }else{
+            $prs = Get-WmiObject -Query "select * from win32_process where Name = 'chrome.exe'" -ErrorAction SilentlyContinue | 
+            Where-Object {$_.CommandLine -match "--remote-debugging-port=$($this.DebugPort)"}
+            if($prs){
+                foreach($pr in $prs){
+                    Stop-Process -Id $pr.ProcessId -Force #-ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+    hidden ClearBrowserData(){
+        Start-Sleep -Seconds 1
+        Remove-Item $this.BrowserTempFolder -Recurse -Force -ErrorAction SilentlyContinue
     }
     # Starts browser and its driver and assings driver state to the exchange context
     StartDriver([System.Object]$DriverContext){
         if(!$this.isDriverStarted){
             Try {
-                $this.StartBrowserDriver()
-                $this.StartBrowser()
+                $script:myDriverPID = $this.StartBrowserDriver()
+                $script:chromeProcess = $this.StartBrowser()
                 $options = [OpenQA.Selenium.Chrome.ChromeOptions]::new()
                 $options.DebuggerAddress = "127.0.0.1:$($this.DebugPort)"
                 $this.WebDriver = [OpenQA.Selenium.Remote.RemoteWebDriver]::New("http://localhost:$($this.DriverPort)",$options)
@@ -313,13 +365,9 @@ class WebOperation : Operation {
             $this.WebDriver = $null
             $this.isDriverStarted = $false
         }
-        if($script:chromeProcess){
-            Stop-Process -Id $script:chromeProcess.Id -Force -ErrorAction SilentlyContinue
-        }
-        Get-ChildItem $this.BrowserTempFolder -Recurse | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        if($script:myDriverPID){
-            Stop-Process -Id $script:myDriverPID.Id -Force -ErrorAction SilentlyContinue
-        }
+        $this.CloseBrowserDriver()
+        $this.CloseBrowser()
+        $this.ClearBrowserData()
     }
 }
 
@@ -595,8 +643,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUXEU/U8QNmd1rh7KKnXXVzYD8
-# 5a+gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU4qkCguoCFquHaeVqOf6wZ2zL
+# gwagggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -615,11 +663,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUfujbuBa3N8Hkfc+y
-# JpnJMWiODA8wDQYJKoZIhvcNAQEBBQAEggEAHAPapXnOH3x5ajdPTwB+qGrb1n2g
-# 4v0QV1/RrklbI8W3Cs41lycfrlMKrpVbIq3yjjVvOcc+rw3X9osUZTC3vGHJTixQ
-# WhKVLXLU0zgviby7LdC0zNBYh8pycFa9VaT70f/ocdDwDoo4u4+aIDjf8xk3bMFp
-# TuTybtwBGmxJIY081vrApOBmcMYeWl2A/CXkAqEHpIs2p0D7wv89lgDjGxzuzTai
-# mqzI27Y/IrXTK0ZgnMnvUDZwgq6ekcXKX6WryFuf8RDjyeYmyX87O84YZiTBsVmv
-# 7JzxeBKe416bdJkRtx7r+AxfR0EYmhrhzV0SkuIQ2Q7vPOCTsS7yK2qYxw==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUQ1Nr31wusmk7oGmx
+# x2/p6cpPzRIwDQYJKoZIhvcNAQEBBQAEggEAAfzf+XJbmNjmlMjuD6ipjSIPWPz9
+# TabXl26UAkvo2GMxtJdtdC3CSfcp4+0h5w4cJprJCnueYLAfmBG0nEHVVQD6d1TB
+# L8hjyHzypHyvM648I67BX/V5xgxn3DK9yWwt+mTqidG+KQw3eYvqhvmYIhjzti20
+# AvVqw+vViTAVEY/V8Ti2ckMD/U4oP7/I0taamlA+BNRYeug5zKgQQIrR3lbdrSHS
+# oobCeXLOfR7ZuCUMXg8Hryxar60O3qqM11F7ttV6FaOtQFe6BaZ7XOywU+w9s2Zu
+# 79jla2XGSFdY0mvHOzcCMPeiPI+iqh9FDHF7k0EiMUoTohMbsbCG8CShkg==
 # SIG # End signature block
