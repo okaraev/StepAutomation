@@ -20,10 +20,20 @@ pipeline {
         stage('Tests'){
             steps{
                 script{
-                    powershell(returnStdout: true,script: '''
-                    ./Tests.ps1
-                    Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
-                    ''')
+                    parallel(
+                        'Powershell Desktop Test': {
+                            powershell(returnStdout: true,script: '''
+                            ./Tests.ps1
+                            Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+                            ''')
+                        },
+                        'Powershell Core Test': {
+                            powershell(returnStdout: true,script: '''
+                            pwsh ./Tests.ps1
+                            Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+                            ''')
+                        }
+                    )
                 }
             }
         }
