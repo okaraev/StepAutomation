@@ -157,6 +157,248 @@ Describe "Method Class" {
     }
 }
 
+Describe "Step Class"{
+    Context "Constructor"{
+        It "Should return Exception about Operation"{
+            Try{
+                [Step]::new('','Some Description',1,'Some Xpath',$null)
+            }catch{
+                $myErr1 = $_
+            }
+            $myErr1.Exception.Message | Should -Be "Cannot validate Operation argument, provide valid Name for Operation"
+
+            $object = [PSCustomObject]@{
+                Operation = ''
+                Name = 'Some Description'
+                Step = 1
+                Value = 'Some Xpath'
+            }
+            Try{
+                [Step]::new($object)
+            }catch{
+                $myErr2 = $_
+            }
+            $myErr2.Exception.Message | Should -Be "Cannot validate Operation argument, provide valid Name for Operation"
+        }
+
+        It "Should return Exception about Operation Name"{
+            Try{
+                [Step]::new('Some Operation','',1,'Some Xpath',$null)
+            }catch{
+                $myErr1 = $_
+            }
+            $myErr1.Exception.Message | Should -Be "Cannot validate Name argument, provide valid Name"
+
+            $object = [PSCustomObject]@{
+                Operation = 'Some Operation'
+                Name = ''
+                Step = 1
+                Value = 'Some Xpath'
+            }
+            Try{
+                [Step]::new($object)
+            }catch{
+                $myErr2 = $_
+            }
+            $myErr2.Exception.Message | Should -Be "Cannot validate Name argument, provide valid Name"
+        }
+
+        It "Should return Exception about Step value"{
+            Try{
+                [Step]::new('Some Operation','Some Description','','Some Xpath',$null)
+            }catch{
+                $myErr1 = $_
+            }
+            $myErr1.Exception.Message | Should -Be "Cannot validate Step argument, provide valid Step value"
+            
+            Try{
+                [Step]::new('Some Operation','Some Description',0,'Some Xpath',$null)
+            }catch{
+                $myErr2 = $_
+            }
+            $myErr2.Exception.Message | Should -Be "Cannot validate Step argument, provide valid Step value"
+
+            $object = [PSCustomObject]@{
+                Operation = 'Some Operation'
+                Name = 'Some Description'
+                Step = ''
+                Value = 'Some Xpath'
+            }
+            Try{
+                [Step]::new($object)
+            }catch{
+                $myErr3 = $_
+            }
+            $myErr3.Exception.Message | Should -Be "Cannot validate Step argument, provide valid Step value"
+
+            $object = [PSCustomObject]@{
+                Operation = 'Some Operation'
+                Name = 'Some Description'
+                Step = 0
+                Value = 'Some Xpath'
+            }
+            Try{
+                [Step]::new($object)
+            }catch{
+                $myErr4 = $_
+            }
+            $myErr4.Exception.Message | Should -Be "Cannot validate Step argument, provide valid Step value"
+        }
+
+        It "Should return Exception about Value argument"{
+            Try{
+                [Step]::new('Some Operation','Some Description',1,'',$null)
+            }catch{
+                $myErr1 = $_
+            }
+            $myErr1.Exception.Message | Should -Be "Cannot validate Value argument, provide valid Value"
+
+            $object = [PSCustomObject]@{
+                Operation = 'Some Operation'
+                Name = 'Some Description'
+                Step = 1
+                Value = ''
+            }
+            Try{
+                [Step]::new($object)
+            }catch{
+                $myErr2 = $_
+            }
+            $myErr2.Exception.Message | Should -Be "Cannot validate Value argument, provide valid Value"
+        }
+
+        It "Should not return any Exception"{
+            Try{
+                [Step]::new('Some Operation','Some Description',1,'Some Xpath',$null)
+            }catch{
+                $myErr = $_
+            }
+            $myErr | Should -Be $null
+        }
+    }
+}
+
+Describe "DriverConfig class"{
+    Context "Constructor"{
+        It "Should return Exception about Browser Executable Path path"{
+            $existingFile = Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName
+            Try{
+                [DriverConfig]::new('C:\notExisting2022file.fileext',$existingFile)
+            }catch{
+                $myErr1 = $_
+            }
+            $myErr1.Exception.Message | Should -Be "Cannot validate BrowserExecutablePath argument, provide valid File Path"
+
+            $Object = [PSCustomObject]@{
+                BrowserExecutablePath = 'C:\notExisting2022file.fileext'
+                DriverExecutablePath = $existingFile
+            }
+
+            Try{
+                [DriverConfig]::new($Object)
+            }catch{
+                $myErr2 = $_
+            }
+            $myErr2.Exception.Message | Should -Be "Cannot validate BrowserExecutablePath argument, provide valid File Path"
+
+            Try{
+                [DriverConfig]::new('',$existingFile)
+            }catch{
+                $myErr3 = $_
+            }
+            $myErr3.Exception.Message | Should -Be "Cannot find property BrowserExecutablePath"
+            
+            $Object = [PSCustomObject]@{
+                DriverExecutablePath = $existingFile
+            }
+
+            Try{
+                [DriverConfig]::new($Object)
+            }catch{
+                $myErr4 = $_
+            }
+            $myErr4.Exception.Message | Should -Be "Cannot find property BrowserExecutablePath"
+
+            Try{
+                [DriverConfig]::new($existingFile,$existingFile)
+            }catch{
+                $myErr5 = $_
+            }
+            $myErr5 | Should -Be $null
+
+            $Object = [PSCustomObject]@{
+                BrowserExecutablePath = $existingFile
+                DriverExecutablePath = $existingFile
+            }
+
+            Try{
+                [DriverConfig]::new($Object)
+            }catch{
+                $myErr6 = $_
+            }
+            $myErr6 | Should -Be $null
+        }
+
+        It "Should return Exception about Driver Executable Path path"{
+            $existingFile = Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName
+            Try{
+                [DriverConfig]::new($existingFile,'C:\notExisting2022file.fileext')
+            }catch{
+                $myErr1 = $_
+            }
+            $myErr1.Exception.Message | Should -Be "Cannot validate DriverExecutablePath argument, provide valid File Path"
+
+            $Object = [PSCustomObject]@{
+                BrowserExecutablePath = $existingFile
+                DriverExecutablePath = 'C:\notExisting2022file.fileext'
+            }
+
+            Try{
+                [DriverConfig]::new($Object)
+            }catch{
+                $myErr2 = $_
+            }
+            $myErr2.Exception.Message | Should -Be "Cannot validate DriverExecutablePath argument, provide valid File Path"
+
+            Try{
+                [DriverConfig]::new($existingFile,'')
+            }catch{
+                $myErr3 = $_
+            }
+            $myErr3.Exception.Message | Should -Be "Cannot find property DriverExecutablePath"
+            
+            $Object = [PSCustomObject]@{
+                BrowserExecutablePath = $existingFile
+            }
+
+            Try{
+                [DriverConfig]::new($Object)
+            }catch{
+                $myErr4 = $_
+            }
+            $myErr4.Exception.Message | Should -Be "Cannot find property DriverExecutablePath"
+
+            Try{
+                [DriverConfig]::new($existingFile,$existingFile)
+            }catch{
+                $myErr5 = $_
+            }
+            $myErr5 | Should -Be $null
+
+            $Object = [PSCustomObject]@{
+                BrowserExecutablePath = $existingFile
+                DriverExecutablePath = $existingFile
+            }
+
+            Try{
+                [DriverConfig]::new($Object)
+            }catch{
+                $myErr6 = $_
+            }
+            $myErr6 | Should -Be $null
+        }
+    }
+}
 
 Describe "Operation Class"{
     Context "Method Collection"{
@@ -209,6 +451,65 @@ Describe "Operation Class"{
 
 
 Describe "WebOperation Class"{
+    Context "Class Constructor"{
+        It "Should return exception about Steps" {
+            Try{
+                $exist = Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName
+                $dc = [DriverConfig]::new($exist,$exist)
+                [WebOperation]::New($dc,[Step[]]@(),58888,"D:\chromedata",$true)
+            }catch{
+                $myErr1 = $_
+            }
+            $myErr1.Exception.Message | Should -Be "Cannot validate Steps argument, provide a valid '[Step]' array"
+
+            Try{
+                [WebOperation]::New([Step[]]@(),"192.168.100.100",58888,58888)
+            }catch{
+                $myErr2 = $_
+            }
+            $myErr2.Exception.Message | Should -Be "Cannot validate Steps argument, provide a valid '[Step]' array"
+        }
+
+        It "Should return exception about Driver Port" {
+            Try{
+                $exist = Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName
+                $dc = [DriverConfig]::new($exist,$exist)
+                $Steps = [Step[]]@([Step]::new('Op','Name',1,'//*',$null))
+                [WebOperation]::New($dc,$Steps,6545454,"D:\chromedata",$true)
+            }catch{
+                $myErr1 = $_
+            }
+            $myErr1.Exception.Message | Should -Be "Cannot validate DriverPort argument, provide a valid port value, Port Value must be between 1 and 65532"
+
+            Try{
+                [WebOperation]::New($Steps,"192.168.100.100",6545454,58888)
+            }catch{
+                $myErr2 = $_
+            }
+            $myErr2.Exception.Message | Should -Be "Cannot validate DriverPort argument, provide a valid port value, Port Value must be between 1 and 65532"
+        }
+
+        It "Should return exception about IP Address" {
+            Try{
+                $Steps = [Step[]]@([Step]::new('Op','Name',1,'//*',$null))
+                [WebOperation]::New($Steps,192.168.100.100,64455,64456)
+            }catch{
+                $myErr = $_
+            }
+            $myErr.Exception.Message | Should -Be "Cannot validate RemoteDriverIP argument, provide a valid '[IPAddress]' value"
+        }
+
+        It "Should return exception about Browser Debug Port" {
+            Try{
+                $Steps = [Step[]]@([Step]::new('Op','Name',1,'//*',$null))
+                [WebOperation]::New($Steps,"192.168.100.100",64455,0)
+            }catch{
+                $myErr = $_
+            }
+            $myErr.Exception.Message | Should -Be "Cannot validate BrowserDebugPort argument, provide a valid port value, Port Value must be between 1 and 65532"
+        }
+    }
+
     Context "Start Driver"{
         It "Should not return any exceptions" {
             Try{
@@ -302,9 +603,6 @@ Describe "WebOperation Class"{
     }
 }
 
-Describe "Local Web Site"{
-    It "Should Close the site"{
-        Invoke-WebRequest -Uri "$($localSite)close" -TimeoutSec 2 -ErrorAction SilentlyContinue | Out-Null
-        $null | Should -Be $null
-    }
+AfterAll{
+    Invoke-WebRequest -Uri "$($localSite)close" -TimeoutSec 2 -ErrorAction SilentlyContinue | Out-Null
 }
