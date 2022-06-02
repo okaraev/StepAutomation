@@ -1,7 +1,13 @@
 class Method{
     hidden [ScriptBlock] $Function
     hidden [string] $Method
+    hidden Validate($Method){
+        if([string]::IsNullOrEmpty($Method)){
+            throw "Cannot validate Method Name, provide a valid method name"
+        }
+    }
     Method([String]$Method,[scriptBlock]$Function){
+        $this.Validate($Method)
         $this.Method = $Method
         $this.Function = $Function
     }
@@ -20,16 +26,22 @@ class Step{
     [int]$Step
     [string]$Value
     [string]$Source
+    hidden Validate([System.Object]$Step){
+        if([String]::IsNullOrEmpty($Step.Operation)){
+            throw "Cannot validate Operation argument, provide valid Name for Operation"
+        }
+        if([String]::IsNullOrEmpty($Step.Name)){
+            throw "Cannot validate Name argument, provide valid Name"
+        }
+        if($Step.Step -eq 0 -or [string]::IsNullOrEmpty($Step.Step)){
+            throw "Cannot validate Step argument, provide valid Step value"
+        }
+        if([String]::IsNullOrEmpty($Step.Value)){
+            throw "Cannot validate Value argument, provide valid Value"
+        }
+    }
     Step([System.Object]$Step){
-        if(!$Step.Name){
-            throw "Cannot find Property Name"
-        }
-        if(!$Step.Step){
-            throw "Cannot find Property Step"
-        }
-        if(!$step.Operation){
-            throw "Cannot find Property Operation"
-        }
+        $this.Validate($Step)
         $this.Operation = $Step.Operation
         $this.Step = $Step.Step
         $this.Name = $Step.Name
@@ -37,6 +49,7 @@ class Step{
         $this.Source = $step.Source
     }
     Step([string]$Operation,[string]$Name,[int]$Step,[string]$Value,[string]$Source){
+        $this.Validate([PSCustomObject]@{Operation=$Operation;Name=$Name;Step=$Step;Value=$Value;Source=$Source})
         $this.Operation = $Operation
         $this.Name = $Name
         $this.Step = $Step
@@ -48,17 +61,33 @@ class Step{
 class DriverConfig {
     [string]$BrowserExecutablePath
     [string]$DriverExecutablePath
-    DriverConfig([System.Object]$Config){
-        if(!$Config.DriverExecutablePath){
-            throw "Cannot find property DriverExecutable path"
-        }
+    hidden Validate([System.Object]$Config){
         if(!$Config.BrowserExecutablePath){
-            throw "Cannot find property BrowserExecutable path"
+            throw "Cannot find property BrowserExecutablePath"
         }
+        if(!$Config.DriverExecutablePath){
+            throw "Cannot find property DriverExecutablePath"
+        }
+        if($null -eq ($Config.BrowserExecutablePath -as [System.IO.FileInfo])){
+            throw "Cannot validate BrowserExecutablePath argument, provide valid File Path"
+        }
+        if($null -eq ($Config.DriverExecutablePath -as [System.IO.FileInfo])){
+            throw "Cannot validate DriverExecutablePath argument, provide valid File Path"
+        }
+        if(!([System.IO.FileInfo]$Config.BrowserExecutablePath).Exists){
+            throw "Cannot validate BrowserExecutablePath argument, provide valid File Path"
+        }
+        if(!([System.IO.FileInfo]$Config.DriverExecutablePath).Exists){
+            throw "Cannot validate DriverExecutablePath argument, provide valid File Path"
+        }
+    }
+    DriverConfig([System.Object]$Config){
+        $this.Validate($Config)
         $this.DriverExecutablePath = $Config.DriverExecutablePath
         $this.BrowserExecutablePath = $Config.BrowserExecutablePath
     }
     DriverConfig([string]$BrowserExePath,[string]$DriverExePath){
+        $this.Validate(([PSCustomObject]@{BrowserExecutablePath=$BrowserExePath;DriverExecutablePath=$DriverExePath}))
         $this.BrowserExecutablePath = $BrowserExePath
         $this.DriverExecutablePath = $DriverExePath
     }
@@ -225,12 +254,41 @@ class WebOperation : Operation {
     hidden [string] $MainWindow
     hidden [System.Object] $WebDriver
     hidden [bool] $isDriverStarted = $false
+    hidden [ipaddress] $DriverIP = '127.0.0.1'
+    hidden Validate([System.Object]$Arguments){
+        if($Arguments.PSObject.Properties['Steps']){
+            if($Arguments.Steps.Count -eq 0){
+                throw "Cannot validate Steps argument, provide a valid '[Step]' array"
+            }
+        }
+        if($Arguments.DriverPort -lt 1 -or $arguments.DriverPort -gt 65532){
+            throw "Cannot validate DriverPort argument, provide a valid port value, Port Value must be between 1 and 65532"
+        }
+        if($Arguments.PSObject.Properties['RemoteDriverIP']){
+            if($null -eq ($Arguments.RemoteDriverIP -as [IPAddress])){
+                throw "Cannot validate RemoteDriverIP argument, provide a valid '[IPAddress]' value"
+            }
+        }
+        if($Arguments.PSObject.Properties['BrowserDebugPort']){
+            if($Arguments.BrowserDebugPort -lt 1 -or $arguments.BrowserDebugPort -gt 65532){
+                throw "Cannot validate BrowserDebugPort argument, provide a valid port value, Port Value must be between 1 and 65532"
+            }
+        }
+    }
     WebOperation([DriverConfig]$Config, [Step[]]$Steps, [Decimal]$DriverPort, [String]$BrowserTempFolder ,[bool]$Backround)
     :base([Step[]]$Steps){
-        $this.Configuration = $Config
+        $this.Validate([PSCUstomObject]@{Steps=$Steps;DriverPort=$DriverPort})
+        $this.Configuration = [DriverConfig]::new($Config)
         $this.DriverPort = $DriverPort
-        $this.BrowserTempFolder = $BrowserTempFolder
+        $this.BrowserTempFolder = ([System.IO.DirectoryInfo]$BrowserTempFolder).FullName
         $this.BackroundProcess = $Backround
+    }
+    WebOperation([Step[]]$Steps,[ipaddress]$RemoteDriverIP,[Decimal]$RemoteDriverPort,[Decimal]$BrowserDebugPort)
+    :base([Step[]]$Steps){
+        $this.Validate([PSCUstomObject]@{Steps=$Steps;DriverPort=$RemoteDriverPort;RemoteDriverIP=$RemoteDriverIP;BrowserDebugPort=$BrowserDebugPort})
+        $this.DriverIP = $RemoteDriverIP
+        $this.DriverPort = $RemoteDriverPort
+        $this.DebugPort = $BrowserDebugPort
     }
     hidden [System.Diagnostics.Process] StartBrowserDriver(){
         if($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
@@ -318,11 +376,14 @@ class WebOperation : Operation {
     StartDriver([System.Object]$DriverContext){
         if(!$this.isDriverStarted){
             Try {
-                $script:myDriverPID = $this.StartBrowserDriver()
-                $script:chromeProcess = $this.StartBrowser()
+                if($null -ne $this.Configuration){
+                    $script:myDriverPID = $this.StartBrowserDriver()
+                    $script:chromeProcess = $this.StartBrowser()
+                }
+                $remoteAddress = "http://$($this.DriverIP.IPAddressToString):$($this.DriverPort)"
                 $options = [OpenQA.Selenium.Chrome.ChromeOptions]::new()
-                $options.DebuggerAddress = "127.0.0.1:$($this.DebugPort)"
-                $this.WebDriver = [OpenQA.Selenium.Remote.RemoteWebDriver]::New("http://localhost:$($this.DriverPort)",$options)
+                $options.DebuggerAddress = "localhost:$($this.DebugPort)"
+                $this.WebDriver = [OpenQA.Selenium.Remote.RemoteWebDriver]::New($remoteAddress,$options)
                 $this.MainWindow = $this.WebDriver.WindowHandles
                 $property = [PSCustomObject]@{
                     WebDriver = $this.WebDriver
@@ -365,9 +426,11 @@ class WebOperation : Operation {
             $this.WebDriver = $null
             $this.isDriverStarted = $false
         }
-        $this.CloseBrowserDriver()
-        $this.CloseBrowser()
-        $this.ClearBrowserData()
+        if($null -ne $this.Configuration){
+            $this.CloseBrowserDriver()
+            $this.CloseBrowser()
+            $this.ClearBrowserData()
+        }
     }
 }
 
@@ -643,8 +706,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU8kYi0vjs9ZqNqdIBG3fPZAUh
-# EOCgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUWjqy87TcSsvS87vUh30FiT34
+# koqgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -663,11 +726,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUVL+WijbWH31CmdiZ
-# 0AP+WJvm2nUwDQYJKoZIhvcNAQEBBQAEggEAg5sF2NK1gB2uc6Y0fRJawDTL+Cuc
-# vWGcfz0X8Rpm/9Lsq20I9CEPkqhe6FofbqBmWY6t33eL73ATCUWPnOxzANJSyNVL
-# Sm/saFOAxW/dCQbVdYsNKjEzT7YXSGJeSIJaVl+F1ZhxEhOYeyHaXR7OFll8KIRC
-# Md/a1Fpt+7sFn07H/JudT8bcAHsuyx8KgPUr8yrZDNs63J58s42OcWBjdbkn3voz
-# CBw6MyGFvuNKwcdKfnfdo5EH/R8Bze+mXVgFMMVGD9PW1Hq1+HN2T0RH+kaPqCU8
-# yJ4CHoYmoNSu1TnftZOnRpyixhenr8EbrSSeSYjzIB5KkOsHUmljL9IT5A==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUx2Pzal4X3QZxoDkj
+# vu5phKZaSfkwDQYJKoZIhvcNAQEBBQAEggEAZyPmlMhKUEcptw93KPRHjVn/9iVM
+# PeUoAVySP4JZZu071y40cUH1/UumGDOkbh3bTee7F46vdHWwsdDfCMhB1n4fDsI+
+# 1dDUyBP1f0qWW/EUi3eGh4fM3FkZsxtRnLjlf8525l28aTYtB0Mlq2R2Fouuahcs
+# 2ywwNsozVSTWEuXBcl9uXMzdDXzI1O62xWOJ8GdM4UzxDx/f3ECg5+Ds5OON33OX
+# FPPfxVxJT7GGUFdxdEXc7VkcsS0XpaYoDywM2idy5Dwt1y58yymaclmbTs4GG1eG
+# Dv6S8BGeRZiAaXMXFzdoDJ3xp013gXlARJis3lKoS+LC6YbRF+X+d2w8Qg==
 # SIG # End signature block
