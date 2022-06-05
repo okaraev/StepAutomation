@@ -1,4 +1,9 @@
 using module .\StepAutomation.psd1
+[CmdletBinding()]
+param(
+    [parameter(Mandatory)]
+    [System.Object]$Arguments
+)
 
 class testMethod : Method{
     testMethod()
@@ -52,7 +57,7 @@ class GetValue : Method{
     }
 }
 
-$localSite = "http://localhost:65158/"
+$localSite = "http://localhost:$($Arguments.LocalSitePort)/"
 $ps = [powershell]::Create()
 $ps.Runspace.SessionStateProxy.SetVariable('url',$localSite)
 [void]$ps.AddScript{
@@ -456,14 +461,14 @@ Describe "WebOperation Class"{
             Try{
                 $exist = Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName
                 $dc = [DriverConfig]::new($exist,$exist)
-                [WebOperation]::New($dc,[Step[]]@(),58888,"D:\chromedata",$true)
+                [WebOperation]::New($dc,[Step[]]@(),$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
             }catch{
                 $myErr1 = $_
             }
             $myErr1.Exception.Message | Should -Be "Cannot validate Steps argument, provide a valid '[Step]' array"
 
             Try{
-                [WebOperation]::New([Step[]]@(),"192.168.100.100",58888,58888)
+                [WebOperation]::New([Step[]]@(),"192.168.100.100",$($Arguments.BrowserDriverPort),$($Arguments.BrowserDriverPort))
             }catch{
                 $myErr2 = $_
             }
@@ -482,7 +487,7 @@ Describe "WebOperation Class"{
             $myErr1.Exception.Message | Should -Be "Cannot validate DriverPort argument, provide a valid port value, Port Value must be between 1 and 65532"
 
             Try{
-                [WebOperation]::New($Steps,"192.168.100.100",6545454,58888)
+                [WebOperation]::New($Steps,"192.168.100.100",6545454,$($Arguments.BrowserDriverPort))
             }catch{
                 $myErr2 = $_
             }
@@ -513,7 +518,7 @@ Describe "WebOperation Class"{
     Context "Start Driver"{
         It "Should not return any exceptions" {
             Try{
-                $webOperation = [WebOperation]::New($driverConf,$WebSteps,58888,"D:\chromedata",$true)
+                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
                 $webOperation.StartDriver($Context2)
             }catch{
                 $myErr = $_
@@ -530,7 +535,7 @@ Describe "WebOperation Class"{
         It "Should return Exception about context"{
             Try{
                 Start-Sleep -Seconds 1
-                $webOperation = [WebOperation]::New($driverConf,$WebSteps,58888,"D:\chromedata",$true)
+                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
                 $webOperation.StartDriver($Context2)
             }catch{
                 $myErr = $_
@@ -552,7 +557,7 @@ Describe "WebOperation Class"{
         It "Should change the context value"{
             Try{
                 Start-Sleep -Seconds 1
-                $webOperation = [WebOperation]::New($driverConf,$WebSteps,58888,"D:\chromedata",$true)
+                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
                 $webOperation.StartDriver($Context2)
             }catch{
                 $myErr = $_
@@ -574,7 +579,7 @@ Describe "WebOperation Class"{
         It "Should set and add text"{
             Try{
                 Start-Sleep -Seconds 1
-                $webOperation = [WebOperation]::New($driverConf,$WebSteps,58888,"D:\chromedata",$true)
+                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
                 $webOperation.StartDriver($Context2)
             }catch{
                 $myErr = $_
