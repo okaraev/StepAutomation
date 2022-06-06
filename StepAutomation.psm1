@@ -330,6 +330,36 @@ class WebOperation : Operation {
         }
         return $brPID
     }
+    hidden [bool] CloseProcess([int]$ProcessId){
+        $Status = $false
+        $now = Get-Date
+        While($now -gt (Get-Date).AddSeconds(-30)){
+            Try{
+                Stop-Process -Id $ProcessId -Force -ErrorAction Stop
+            }catch{
+                if($_.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                    $Status = $true
+                    break
+                }
+            }
+            if(!$Status){
+                Try{
+                    $process = Get-Process -Id $ProcessId -ErrorAction Stop
+                    if($process.HasExited -and ($null -eq $process.Name)){
+                        $Status = $true
+                        break
+                    }
+                }catch{
+                    if($_.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                        $Status = $true
+                        break
+                    }
+                }
+                Start-Sleep -Milliseconds 500
+            }
+        }
+        return $Status
+    }
     hidden CloseBrowserDriver(){
         $Stopped = $false
         if(!$script:myDriverPID){
@@ -346,31 +376,7 @@ class WebOperation : Operation {
             }
         }
         if($script:myDriverPID){
-            $now = Get-Date
-            While($now -gt (Get-Date).AddSeconds(-10)){
-                Try{
-                    Stop-Process -Id $script:myDriverPID.Id -Force -ErrorAction Stop
-                    $Stopped = $true
-                }catch{
-                    if($_.Exception.Gettype().FullName -ne "Microsoft.PowerShell.Commands.ProcessCommandException"){
-                        Throw $_
-                    }
-                }
-                if($Stopped){
-                    Try{
-                        $process = Get-Process -Id $script:myDriverPID.Id -ErrorAction Stop
-                        if($process.HasExited -and ($this.DriverPort -notin (Get-NetTCPConnection).LocalPort)){
-                            break
-                        }
-                        Start-Sleep -Seconds 1
-                    } catch {
-                        if($_.Exception.Gettype().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
-                            Break
-                        }
-                        Throw $_
-                    }
-                }
-            }
+            $Stopped = $this.CloseProcess($script:myDriverPID.Id)
         }
         if(!$Stopped){
             Throw "Cannot Close Browser Driver"
@@ -392,31 +398,9 @@ class WebOperation : Operation {
         }catch{
             Throw $_
         }
-        if($prs){
-            foreach($pr in $prs){
-                $now = Get-Date
-                While($now -gt (Get-Date).AddSeconds(-15)){
-                    $stopped = $false
-                    Try{
-                        Stop-Process -Id $pr.ProcessId -Force -ErrorAction Stop
-                        $stopped = $true
-                    }catch{
-                        if($_.Exception.GetType().FullName -ne "Microsoft.PowerShell.Commands.ProcessCommandException"){
-                            Throw $_
-                        }
-                    }
-                    if($stopped){
-                        Try{
-                            Get-Process -Id $pr.ProcessId -ErrorAction Stop | Out-Null
-                            Start-Sleep -Seconds 1
-                        }catch{
-                            if($_.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
-                                break
-                            }
-                            Throw $_
-                        }
-                    }
-                }
+        foreach($pr in $prs){
+            if(!$this.CloseProcess($pr.ProcessId)){
+                Throw "Cannot close the process"
             }
         }
     }
@@ -757,8 +741,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUQp45onc4DLN1u2HJmwucgJT3
-# qqigggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU7tXOdTziGosw1wheK/OVztoQ
+# KNOgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -777,11 +761,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUqm+2WAkiwGhJnk8u
-# Um5c6x4IyLAwDQYJKoZIhvcNAQEBBQAEggEAmLdLIwAwFpjIJ0VoX6XU8mfOQyMV
-# d9kZX3h7aHKy3oKAuU6L/kNb5uONk44nXaWZOpQb923HRD3gmjC48jETfolN0hs4
-# BsmvFK/5/JKeZY65nfAvbbVo4U7ohqWM88gPJGNR4G3M8ew2IDdqBPfXSsV507J2
-# vAoHB/YXwDa33Ks8MtDbr3Wc8SchrGqBq9mbf/F1R8VCMgrfEi2+ddeiQbh7yGJY
-# sXp3rPCj3e8MO+J/EEzKcBTj9okRYw2ZjXPOvzF/VwHcNn08yME/UQ6xHO6oY06F
-# Vgxkx47jgieBjtk1OWpTjJFwGanLXanBw3MNaUS6LygbbyE+ccQ5me+vCw==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUGHg+iwEjy5Q/Vvx/
+# rC9MawCUwGMwDQYJKoZIhvcNAQEBBQAEggEAWiVbVJLQyeqGzI7NPkXfkmQARaih
+# WK8kbEjY9C4CeQBEcbLKmhuesVNkQB3nfLIt9i8Rs5l/nFH/7u/hox+fRSlnXt0a
+# +3kfVddarfnRtn+FCpxlE+mt40acZQ6lZOy+CBrYhpP5hQATLIQ2kcCre09FHeLU
+# 6VFZt8aKAVFbE5/J8aWP5gI12VNaPH2WndFtoGwhbSFdf6rL+k+Qqw4go/0kyMj9
+# Gk0pClTFTLFet8GOsL1EdJxiAaSy244+bIfhhSGkIQpD96cwL5aqJrD36qAYCkCs
+# pj/VHe+PbodjQviktveA57MNa702rmS9rdkMR+UME386p+1qNoWa1avn4g==
 # SIG # End signature block
