@@ -20,10 +20,18 @@ pipeline {
         stage('Tests'){
             steps{
                 script{
-                    powershell(returnStdout: true,script: '''
-                    ./Tests.ps1
-                    Get-Process chrome -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
-                    ''')
+                    parallel(
+                        'Powershell Desktop Test': {
+                            powershell(returnStdout: true,script: '''
+                            ./Tests.ps1 @{LocalSitePort=65158;BrowserDriverPort=65159}
+                            ''')
+                        },
+                        'Powershell Core Test': {
+                            pwsh(returnStdout: true,script: '''
+                            ./Tests.ps1 @{LocalSitePort=65156;BrowserDriverPort=65157}
+                            ''')
+                        }
+                    )
                 }
             }
         }

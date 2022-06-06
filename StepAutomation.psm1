@@ -1,7 +1,13 @@
 class Method{
     hidden [ScriptBlock] $Function
     hidden [string] $Method
+    hidden Validate($Method){
+        if([string]::IsNullOrEmpty($Method)){
+            throw "Cannot validate Method Name, provide a valid method name"
+        }
+    }
     Method([String]$Method,[scriptBlock]$Function){
+        $this.Validate($Method)
         $this.Method = $Method
         $this.Function = $Function
     }
@@ -20,16 +26,22 @@ class Step{
     [int]$Step
     [string]$Value
     [string]$Source
+    hidden Validate([System.Object]$Step){
+        if([String]::IsNullOrEmpty($Step.Operation)){
+            throw "Cannot validate Operation argument, provide valid Name for Operation"
+        }
+        if([String]::IsNullOrEmpty($Step.Name)){
+            throw "Cannot validate Name argument, provide valid Name"
+        }
+        if($Step.Step -eq 0 -or [string]::IsNullOrEmpty($Step.Step)){
+            throw "Cannot validate Step argument, provide valid Step value"
+        }
+        if([String]::IsNullOrEmpty($Step.Value)){
+            throw "Cannot validate Value argument, provide valid Value"
+        }
+    }
     Step([System.Object]$Step){
-        if(!$Step.Name){
-            throw "Cannot find Property Name"
-        }
-        if(!$Step.Step){
-            throw "Cannot find Property Step"
-        }
-        if(!$step.Operation){
-            throw "Cannot find Property Operation"
-        }
+        $this.Validate($Step)
         $this.Operation = $Step.Operation
         $this.Step = $Step.Step
         $this.Name = $Step.Name
@@ -37,6 +49,7 @@ class Step{
         $this.Source = $step.Source
     }
     Step([string]$Operation,[string]$Name,[int]$Step,[string]$Value,[string]$Source){
+        $this.Validate([PSCustomObject]@{Operation=$Operation;Name=$Name;Step=$Step;Value=$Value;Source=$Source})
         $this.Operation = $Operation
         $this.Name = $Name
         $this.Step = $Step
@@ -48,17 +61,33 @@ class Step{
 class DriverConfig {
     [string]$BrowserExecutablePath
     [string]$DriverExecutablePath
-    DriverConfig([System.Object]$Config){
-        if(!$Config.DriverExecutablePath){
-            throw "Cannot find property DriverExecutable path"
-        }
+    hidden Validate([System.Object]$Config){
         if(!$Config.BrowserExecutablePath){
-            throw "Cannot find property BrowserExecutable path"
+            throw "Cannot find property BrowserExecutablePath"
         }
+        if(!$Config.DriverExecutablePath){
+            throw "Cannot find property DriverExecutablePath"
+        }
+        if($null -eq ($Config.BrowserExecutablePath -as [System.IO.FileInfo])){
+            throw "Cannot validate BrowserExecutablePath argument, provide valid File Path"
+        }
+        if($null -eq ($Config.DriverExecutablePath -as [System.IO.FileInfo])){
+            throw "Cannot validate DriverExecutablePath argument, provide valid File Path"
+        }
+        if(!([System.IO.FileInfo]$Config.BrowserExecutablePath).Exists){
+            throw "Cannot validate BrowserExecutablePath argument, provide valid File Path"
+        }
+        if(!([System.IO.FileInfo]$Config.DriverExecutablePath).Exists){
+            throw "Cannot validate DriverExecutablePath argument, provide valid File Path"
+        }
+    }
+    DriverConfig([System.Object]$Config){
+        $this.Validate($Config)
         $this.DriverExecutablePath = $Config.DriverExecutablePath
         $this.BrowserExecutablePath = $Config.BrowserExecutablePath
     }
     DriverConfig([string]$BrowserExePath,[string]$DriverExePath){
+        $this.Validate(([PSCustomObject]@{BrowserExecutablePath=$BrowserExePath;DriverExecutablePath=$DriverExePath}))
         $this.BrowserExecutablePath = $BrowserExePath
         $this.DriverExecutablePath = $DriverExePath
     }
@@ -225,33 +254,57 @@ class WebOperation : Operation {
     hidden [string] $MainWindow
     hidden [System.Object] $WebDriver
     hidden [bool] $isDriverStarted = $false
+    hidden [ipaddress] $DriverIP = '127.0.0.1'
+    hidden Validate([System.Object]$Arguments){
+        if($Arguments.PSObject.Properties['Steps']){
+            if($Arguments.Steps.Count -eq 0){
+                throw "Cannot validate Steps argument, provide a valid '[Step]' array"
+            }
+        }
+        if($Arguments.DriverPort -lt 1 -or $arguments.DriverPort -gt 65532){
+            throw "Cannot validate DriverPort argument, provide a valid port value, Port Value must be between 1 and 65532"
+        }
+        if($Arguments.PSObject.Properties['RemoteDriverIP']){
+            if($null -eq ($Arguments.RemoteDriverIP -as [IPAddress])){
+                throw "Cannot validate RemoteDriverIP argument, provide a valid '[IPAddress]' value"
+            }
+        }
+        if($Arguments.PSObject.Properties['BrowserDebugPort']){
+            if($Arguments.BrowserDebugPort -lt 1 -or $arguments.BrowserDebugPort -gt 65532){
+                throw "Cannot validate BrowserDebugPort argument, provide a valid port value, Port Value must be between 1 and 65532"
+            }
+        }
+    }
     WebOperation([DriverConfig]$Config, [Step[]]$Steps, [Decimal]$DriverPort, [String]$BrowserTempFolder ,[bool]$Backround)
     :base([Step[]]$Steps){
-        $this.Configuration = $Config
+        $this.Validate([PSCUstomObject]@{Steps=$Steps;DriverPort=$DriverPort})
+        $this.Configuration = [DriverConfig]::new($Config)
         $this.DriverPort = $DriverPort
-        $this.BrowserTempFolder = $BrowserTempFolder
+        $this.BrowserTempFolder = ([System.IO.DirectoryInfo]$BrowserTempFolder).FullName
         $this.BackroundProcess = $Backround
     }
+    WebOperation([Step[]]$Steps,[ipaddress]$RemoteDriverIP,[Decimal]$RemoteDriverPort,[Decimal]$BrowserDebugPort)
+    :base([Step[]]$Steps){
+        $this.Validate([PSCUstomObject]@{Steps=$Steps;DriverPort=$RemoteDriverPort;RemoteDriverIP=$RemoteDriverIP;BrowserDebugPort=$BrowserDebugPort})
+        $this.DriverIP = $RemoteDriverIP
+        $this.DriverPort = $RemoteDriverPort
+        $this.DebugPort = $BrowserDebugPort
+    }
     hidden [System.Diagnostics.Process] StartBrowserDriver(){
-        if($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
-            Try{
-                $prPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
-            }catch{
-                throw $_
-            }
-        }else{
-            $prPID = Get-Process chromedriver | Select-Object -First 1
+        Try{
+            $prPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
+        }catch{
+            throw $_
+        }
+        if($prPID.HasExited){
+            Throw "Cannot Start Browser Driver with port $($this.DriverPort)"
         }
         return $prPID
     }
     hidden [System.Diagnostics.Process] StartBrowser(){
-        for($i = 1;$i -lt 1000;$i++){
-            if(Test-Path "$($this.BrowserTempFolder)\$i"){
-                continue
-            }
-            $this.BrowserTempFolder = "$($this.BrowserTempFolder)\$i"
-            break
-        }
+        $guid = [Guid]::NewGuid().Guid
+        $timeStr = Get-Date -Format 'yyyyMMddHHmmssfff'
+        $this.BrowserTempFolder = "$($this.BrowserTempFolder)\$($guid)-$($timeStr)"
         if(!(Test-Path $this.BrowserTempFolder)){
             Try{
                 New-Item -ItemType Directory $this.BrowserTempFolder -ErrorAction Stop
@@ -278,51 +331,110 @@ class WebOperation : Operation {
         return $brPID
     }
     hidden CloseBrowserDriver(){
-        if($script:myDriverPID){
-            Stop-Process -Id $script:myDriverPID.Id -Force -ErrorAction SilentlyContinue
-        }
-        if($Global:PSVersionTable.PSEdition -eq "Core"){
-            Get-Process -Name chromedriver -ErrorAction SilentlyContinue | Where-Object {$_.CommandLine -match "-port=$($this.DriverPort)"} |
-            Stop-Process -ErrorAction SilentlyContinue
-        }else{
-            $pr = Get-WmiObject -Query "select * from win32_process where Name = 'chromedriver.exe'" -ErrorAction SilentlyContinue | 
-            Where-Object {$_.CommandLine -match "-port=$($this.DriverPort)"}
-            if($pr){
-                Stop-Process -Id $pr.ProcessId -Force -ErrorAction SilentlyContinue
+        $Stopped = $false
+        if(!$script:myDriverPID){
+            Try{
+                $PRs = Get-CimInstance -Query "select * from win32_process where Name = 'chromedriver.exe'" -ErrorAction Stop | 
+                Where-Object {$_.CommandLine -Match "-port=$($this.DriverPort)"}
+            }catch{
+                Throw $_
             }
+            if($PRs){
+                $script:myDriverPID = Get-Process -Id $PRs[0].ProcessId
+            }else{
+                $Stopped = $true
+            }
+        }
+        if($script:myDriverPID){
+            $now = Get-Date
+            While($now -gt (Get-Date).AddSeconds(-10)){
+                Try{
+                    Stop-Process -Id $script:myDriverPID.Id -Force -ErrorAction Stop
+                    $Stopped = $true
+                }catch{
+                    if($_.Exception.Gettype().FullName -ne "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                        Throw $_
+                    }
+                }
+                if($Stopped){
+                    Try{
+                        $process = Get-Process -Id $script:myDriverPID.Id -ErrorAction Stop
+                        if($process.HasExited -and ($this.DriverPort -notin (Get-NetTCPConnection).LocalPort)){
+                            break
+                        }
+                        Start-Sleep -Seconds 1
+                    } catch {
+                        if($_.Exception.Gettype().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                            Break
+                        }
+                        Throw $_
+                    }
+                }
+            }
+        }
+        if(!$Stopped){
+            Throw "Cannot Close Browser Driver"
         }
     }
     hidden CloseBrowser(){
         if($script:chromeProcess){
-            Stop-Process -Id $script:chromeProcess.Id -Force -ErrorAction SilentlyContinue
+            Try{
+                Stop-Process -Id $script:chromeProcess.Id -Force -ErrorAction Stop
+            }catch{
+                if($_.Exception.GetType().FullName -ne "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                    Throw $_
+                }
+            }
         }
-        if($Global:PSVersionTable.PSEdition -eq "Core"){
-            Get-Process -Name chrome -ErrorAction SilentlyContinue | 
-            Where-Object {$_.CommandLine -match "--remote-debugging-port=$($this.DebugPort)"} |
-            Stop-Process -ErrorAction SilentlyContinue
-        }else{
-            $prs = Get-WmiObject -Query "select * from win32_process where Name = 'chrome.exe'" -ErrorAction SilentlyContinue | 
+        Try{
+            $prs = Get-CimInstance -Query "select * from win32_process where Name = 'chrome.exe'" -ErrorAction Stop | 
             Where-Object {$_.CommandLine -match "--remote-debugging-port=$($this.DebugPort)"}
-            if($prs){
-                foreach($pr in $prs){
-                    Stop-Process -Id $pr.ProcessId -Force -ErrorAction SilentlyContinue
+        }catch{
+            Throw $_
+        }
+        if($prs){
+            foreach($pr in $prs){
+                $now = Get-Date
+                While($now -gt (Get-Date).AddSeconds(-15)){
+                    $stopped = $false
+                    Try{
+                        Stop-Process -Id $pr.ProcessId -Force -ErrorAction Stop
+                        $stopped = $true
+                    }catch{
+                        if($_.Exception.GetType().FullName -ne "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                            Throw $_
+                        }
+                    }
+                    if($stopped){
+                        Try{
+                            Get-Process -Id $pr.ProcessId -ErrorAction Stop | Out-Null
+                            Start-Sleep -Seconds 1
+                        }catch{
+                            if($_.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                                break
+                            }
+                            Throw $_
+                        }
+                    }
                 }
             }
         }
     }
     hidden ClearBrowserData(){
-        Start-Sleep -Seconds 1
         Remove-Item $this.BrowserTempFolder -Recurse -Force -ErrorAction SilentlyContinue
     }
     # Starts browser and its driver and assings driver state to the exchange context
     StartDriver([System.Object]$DriverContext){
         if(!$this.isDriverStarted){
             Try {
-                $script:myDriverPID = $this.StartBrowserDriver()
-                $script:chromeProcess = $this.StartBrowser()
+                if($null -ne $this.Configuration){
+                    $script:myDriverPID = $this.StartBrowserDriver()
+                    $script:chromeProcess = $this.StartBrowser()
+                }
+                $remoteAddress = "http://$($this.DriverIP.IPAddressToString):$($this.DriverPort)"
                 $options = [OpenQA.Selenium.Chrome.ChromeOptions]::new()
-                $options.DebuggerAddress = "127.0.0.1:$($this.DebugPort)"
-                $this.WebDriver = [OpenQA.Selenium.Remote.RemoteWebDriver]::New("http://localhost:$($this.DriverPort)",$options)
+                $options.DebuggerAddress = "localhost:$($this.DebugPort)"
+                $this.WebDriver = [OpenQA.Selenium.Remote.RemoteWebDriver]::New($remoteAddress,$options)
                 $this.MainWindow = $this.WebDriver.WindowHandles
                 $property = [PSCustomObject]@{
                     WebDriver = $this.WebDriver
@@ -365,9 +477,11 @@ class WebOperation : Operation {
             $this.WebDriver = $null
             $this.isDriverStarted = $false
         }
-        $this.CloseBrowserDriver()
-        $this.CloseBrowser()
-        $this.ClearBrowserData()
+        if($null -ne $this.Configuration){
+            $this.CloseBrowserDriver()
+            $this.CloseBrowser()
+            $this.ClearBrowserData()
+        }
     }
 }
 
@@ -643,8 +757,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU8kYi0vjs9ZqNqdIBG3fPZAUh
-# EOCgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUQp45onc4DLN1u2HJmwucgJT3
+# qqigggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -663,11 +777,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUVL+WijbWH31CmdiZ
-# 0AP+WJvm2nUwDQYJKoZIhvcNAQEBBQAEggEAg5sF2NK1gB2uc6Y0fRJawDTL+Cuc
-# vWGcfz0X8Rpm/9Lsq20I9CEPkqhe6FofbqBmWY6t33eL73ATCUWPnOxzANJSyNVL
-# Sm/saFOAxW/dCQbVdYsNKjEzT7YXSGJeSIJaVl+F1ZhxEhOYeyHaXR7OFll8KIRC
-# Md/a1Fpt+7sFn07H/JudT8bcAHsuyx8KgPUr8yrZDNs63J58s42OcWBjdbkn3voz
-# CBw6MyGFvuNKwcdKfnfdo5EH/R8Bze+mXVgFMMVGD9PW1Hq1+HN2T0RH+kaPqCU8
-# yJ4CHoYmoNSu1TnftZOnRpyixhenr8EbrSSeSYjzIB5KkOsHUmljL9IT5A==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUqm+2WAkiwGhJnk8u
+# Um5c6x4IyLAwDQYJKoZIhvcNAQEBBQAEggEAmLdLIwAwFpjIJ0VoX6XU8mfOQyMV
+# d9kZX3h7aHKy3oKAuU6L/kNb5uONk44nXaWZOpQb923HRD3gmjC48jETfolN0hs4
+# BsmvFK/5/JKeZY65nfAvbbVo4U7ohqWM88gPJGNR4G3M8ew2IDdqBPfXSsV507J2
+# vAoHB/YXwDa33Ks8MtDbr3Wc8SchrGqBq9mbf/F1R8VCMgrfEi2+ddeiQbh7yGJY
+# sXp3rPCj3e8MO+J/EEzKcBTj9okRYw2ZjXPOvzF/VwHcNn08yME/UQ6xHO6oY06F
+# Vgxkx47jgieBjtk1OWpTjJFwGanLXanBw3MNaUS6LygbbyE+ccQ5me+vCw==
 # SIG # End signature block
