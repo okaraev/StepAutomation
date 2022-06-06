@@ -291,25 +291,20 @@ class WebOperation : Operation {
         $this.DebugPort = $BrowserDebugPort
     }
     hidden [System.Diagnostics.Process] StartBrowserDriver(){
-        if($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
-            Try{
-                $prPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
-            }catch{
-                throw $_
-            }
-        }else{
-            $prPID = Get-Process chromedriver | Select-Object -First 1
+        Try{
+            $prPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
+        }catch{
+            throw $_
+        }
+        if($prPID.HasExited){
+            Throw "Cannot Start Browser Driver with port $($this.DriverPort)"
         }
         return $prPID
     }
     hidden [System.Diagnostics.Process] StartBrowser(){
-        for($i = 1;$i -lt 1000;$i++){
-            if(Test-Path "$($this.BrowserTempFolder)\$i"){
-                continue
-            }
-            $this.BrowserTempFolder = "$($this.BrowserTempFolder)\$i"
-            break
-        }
+        $guid = [Guid]::NewGuid().Guid
+        $timeStr = Get-Date -Format 'yyyyMMddHHmmssfff'
+        $this.BrowserTempFolder = "$($this.BrowserTempFolder)\$($guid)-$($timeStr)"
         if(!(Test-Path $this.BrowserTempFolder)){
             Try{
                 New-Item -ItemType Directory $this.BrowserTempFolder -ErrorAction Stop
@@ -336,40 +331,96 @@ class WebOperation : Operation {
         return $brPID
     }
     hidden CloseBrowserDriver(){
-        if($script:myDriverPID){
-            Stop-Process -Id $script:myDriverPID.Id -Force -ErrorAction SilentlyContinue
-        }
-        if($Global:PSVersionTable.PSEdition -eq "Core"){
-            Get-Process -Name chromedriver -ErrorAction SilentlyContinue | Where-Object {$_.CommandLine -match "-port=$($this.DriverPort)"} |
-            Stop-Process -ErrorAction SilentlyContinue
-        }else{
-            $pr = Get-WmiObject -Query "select * from win32_process where Name = 'chromedriver.exe'" -ErrorAction SilentlyContinue | 
-            Where-Object {$_.CommandLine -match "-port=$($this.DriverPort)"}
-            if($pr){
-                Stop-Process -Id $pr.ProcessId -Force -ErrorAction SilentlyContinue
+        $Stopped = $false
+        if(!$script:myDriverPID){
+            Try{
+                $PRs = Get-CimInstance -Query "select * from win32_process where Name = 'chromedriver.exe'" -ErrorAction Stop | 
+                Where-Object {$_.CommandLine -Match "-port=$($this.DriverPort)"}
+            }catch{
+                Throw $_
             }
+            if($PRs){
+                $script:myDriverPID = Get-Process -Id $PRs[0].ProcessId
+            }else{
+                $Stopped = $true
+            }
+        }
+        if($script:myDriverPID){
+            $now = Get-Date
+            While($now -gt (Get-Date).AddSeconds(-10)){
+                Try{
+                    Stop-Process -Id $script:myDriverPID.Id -Force -ErrorAction Stop
+                    $Stopped = $true
+                }catch{
+                    if($_.Exception.Gettype().FullName -ne "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                        Throw $_
+                    }
+                }
+                if($Stopped){
+                    Try{
+                        $process = Get-Process -Id $script:myDriverPID.Id -ErrorAction Stop
+                        if($process.HasExited -and ($this.DriverPort -notin (Get-NetTCPConnection).LocalPort)){
+                            break
+                        }
+                        Start-Sleep -Seconds 1
+                    } catch {
+                        if($_.Exception.Gettype().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                            Break
+                        }
+                        Throw $_
+                    }
+                }
+            }
+        }
+        if(!$Stopped){
+            Throw "Cannot Close Browser Driver"
         }
     }
     hidden CloseBrowser(){
         if($script:chromeProcess){
-            Stop-Process -Id $script:chromeProcess.Id -Force -ErrorAction SilentlyContinue
+            Try{
+                Stop-Process -Id $script:chromeProcess.Id -Force -ErrorAction Stop
+            }catch{
+                if($_.Exception.GetType().FullName -ne "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                    Throw $_
+                }
+            }
         }
-        if($Global:PSVersionTable.PSEdition -eq "Core"){
-            Get-Process -Name chrome -ErrorAction SilentlyContinue | 
-            Where-Object {$_.CommandLine -match "--remote-debugging-port=$($this.DebugPort)"} |
-            Stop-Process -ErrorAction SilentlyContinue
-        }else{
-            $prs = Get-WmiObject -Query "select * from win32_process where Name = 'chrome.exe'" -ErrorAction SilentlyContinue | 
+        Try{
+            $prs = Get-CimInstance -Query "select * from win32_process where Name = 'chrome.exe'" -ErrorAction Stop | 
             Where-Object {$_.CommandLine -match "--remote-debugging-port=$($this.DebugPort)"}
-            if($prs){
-                foreach($pr in $prs){
-                    Stop-Process -Id $pr.ProcessId -Force -ErrorAction SilentlyContinue
+        }catch{
+            Throw $_
+        }
+        if($prs){
+            foreach($pr in $prs){
+                $now = Get-Date
+                While($now -gt (Get-Date).AddSeconds(-15)){
+                    $stopped = $false
+                    Try{
+                        Stop-Process -Id $pr.ProcessId -Force -ErrorAction Stop
+                        $stopped = $true
+                    }catch{
+                        if($_.Exception.GetType().FullName -ne "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                            Throw $_
+                        }
+                    }
+                    if($stopped){
+                        Try{
+                            Get-Process -Id $pr.ProcessId -ErrorAction Stop | Out-Null
+                            Start-Sleep -Seconds 1
+                        }catch{
+                            if($_.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                                break
+                            }
+                            Throw $_
+                        }
+                    }
                 }
             }
         }
     }
     hidden ClearBrowserData(){
-        Start-Sleep -Seconds 1
         Remove-Item $this.BrowserTempFolder -Recurse -Force -ErrorAction SilentlyContinue
     }
     # Starts browser and its driver and assings driver state to the exchange context
@@ -706,8 +757,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUWjqy87TcSsvS87vUh30FiT34
-# koqgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUQp45onc4DLN1u2HJmwucgJT3
+# qqigggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -726,11 +777,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUx2Pzal4X3QZxoDkj
-# vu5phKZaSfkwDQYJKoZIhvcNAQEBBQAEggEAZyPmlMhKUEcptw93KPRHjVn/9iVM
-# PeUoAVySP4JZZu071y40cUH1/UumGDOkbh3bTee7F46vdHWwsdDfCMhB1n4fDsI+
-# 1dDUyBP1f0qWW/EUi3eGh4fM3FkZsxtRnLjlf8525l28aTYtB0Mlq2R2Fouuahcs
-# 2ywwNsozVSTWEuXBcl9uXMzdDXzI1O62xWOJ8GdM4UzxDx/f3ECg5+Ds5OON33OX
-# FPPfxVxJT7GGUFdxdEXc7VkcsS0XpaYoDywM2idy5Dwt1y58yymaclmbTs4GG1eG
-# Dv6S8BGeRZiAaXMXFzdoDJ3xp013gXlARJis3lKoS+LC6YbRF+X+d2w8Qg==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUqm+2WAkiwGhJnk8u
+# Um5c6x4IyLAwDQYJKoZIhvcNAQEBBQAEggEAmLdLIwAwFpjIJ0VoX6XU8mfOQyMV
+# d9kZX3h7aHKy3oKAuU6L/kNb5uONk44nXaWZOpQb923HRD3gmjC48jETfolN0hs4
+# BsmvFK/5/JKeZY65nfAvbbVo4U7ohqWM88gPJGNR4G3M8ew2IDdqBPfXSsV507J2
+# vAoHB/YXwDa33Ks8MtDbr3Wc8SchrGqBq9mbf/F1R8VCMgrfEi2+ddeiQbh7yGJY
+# sXp3rPCj3e8MO+J/EEzKcBTj9okRYw2ZjXPOvzF/VwHcNn08yME/UQ6xHO6oY06F
+# Vgxkx47jgieBjtk1OWpTjJFwGanLXanBw3MNaUS6LygbbyE+ccQ5me+vCw==
 # SIG # End signature block
