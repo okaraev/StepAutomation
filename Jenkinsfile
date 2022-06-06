@@ -23,12 +23,12 @@ pipeline {
                     parallel(
                         'Powershell Desktop Test': {
                             powershell(returnStdout: true,script: '''
-                            ./Tests.ps1 @{LocalSitePort=65158;BroserDriverPort=65159}
+                            ./Tests.ps1 @{LocalSitePort=65158;BrowserDriverPort=65159}
                             ''')
                         },
                         'Powershell Core Test': {
                             pwsh(returnStdout: true,script: '''
-                            ./Tests.ps1 @{LocalSitePort=65156;BroserDriverPort=65157}
+                            ./Tests.ps1 @{LocalSitePort=65156;BrowserDriverPort=65157}
                             ''')
                         }
                     )
