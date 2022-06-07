@@ -320,10 +320,15 @@ class WebOperation : Operation {
     hidden DefineDebugPort(){
         $defined = $false
         for($port=65000;$port -le 65500;$port++){
-            if($port -notin (Get-NetTCPConnection).LocalPort){
-                $this.DebugPort = $port
-                $defined = $true
-                break
+            Try{
+                Invoke-WebRequest -Uri "http://localhost:$($port)" -TimeoutSec 3 | Out-Null
+            }catch {
+                if($_.Exception.GetType().FullName -eq "System.Net.Http.HttpRequestException" -or $_.Exception.GetType().FullName -eq "System.Net.WebException"){
+                    $this.DebugPort = $port
+                    $defined = $true
+                    break
+                }
+                continue
             }
         }
         if(!$defined){
@@ -762,8 +767,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUfpe5sf/0INh7rRPsl5xre0+X
-# wJKgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUGx5HTXOH2fFeY2JPWe+oQ3Qo
+# t9WgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -782,11 +787,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUl9WwYUUIStNVEeLd
-# qFtHGRhb93swDQYJKoZIhvcNAQEBBQAEggEASSC1L/3hfA8jLNLFM7Xvs1AOm6P8
-# MFahSU+THZes2oAk7wFTj8lCCc+4+zKUMmZJF8k3i6BZ694br3gdkjew4aByver2
-# eIl0zc2ZtAJMgIkuPfXNloMmpjhvh56Vx7fdWQXwRYtN0ASInWL4Or7wNrNbozpf
-# 1/KBNfD4T1TtQNbEXjVxOgo+cO1D54cOxWbv9sHsmdGbqkEFC3qKD+cLcilH5vGo
-# B11q3eNG58ESG5KJ25PDWWqUKlAV9VtTL18wef40YKQ1j8xtmdyis86RHaIUB/Wx
-# xQTruT7M8fPZ3MYEhmhqCtahPJvA6W95BHP16bropk57FTInVPguSemjow==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUsc/yjjR7yxaqcldU
+# MOpB81KuujIwDQYJKoZIhvcNAQEBBQAEggEAiXUjDOIR6AaNwNKl5Zlj721m10wA
+# B/ifWVsjmzV7sKEDCfi6+Ib4McUA8K93lH6Tu8Uxsdy+p3/V0TcFptelP5XM6EgQ
+# fT3MruVDk54P7VmIKEjK7H9fnn6UE4Lqf0HNKfzaEtEXG1syF+pVxgk54f8fekoF
+# 9yj1tlmDSlsu89jaJVotqT5NI94/7ciPtb+VFF6+lhdwKhxEFSC+YnJXERnOhJBG
+# KJGROxQji3F75ajCgb09TOhFGQvzGbG5uwtnRjWY49prN2MQRdnESKBQG2toBlK9
+# RfPRoMje3UBGyiK4HGQ083V6fsqBFSZ38ZIgOCTghn+mo50WerN5QV0cUQ==
 # SIG # End signature block
