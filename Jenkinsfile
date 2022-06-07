@@ -17,7 +17,7 @@ pipeline {
             }
         }
 
-        stage('Tests'){
+        stage('Test'){
             steps{
                 script{
                     parallel(
@@ -42,6 +42,8 @@ pipeline {
                     script{
                         if(env.BRANCH_NAME == 'master'){
                             powershell(returnStdout: true, script: "./Publish.ps1 -Secret ${secret}")
+                        }else{
+                            echo("There is no need for Publish stage on branch ${env.BRANCH_NAME}")
                         }
                     }
                 }

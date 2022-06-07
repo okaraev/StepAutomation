@@ -301,30 +301,51 @@ class WebOperation : Operation {
         }
         return $prPID
     }
-    hidden [System.Diagnostics.Process] StartBrowser(){
-        $guid = [Guid]::NewGuid().Guid
-        $timeStr = Get-Date -Format 'yyyyMMddHHmmssfff'
-        $this.BrowserTempFolder = "$($this.BrowserTempFolder)\$($guid)-$($timeStr)"
-        if(!(Test-Path $this.BrowserTempFolder)){
-            Try{
-                New-Item -ItemType Directory $this.BrowserTempFolder -ErrorAction Stop
-            }catch{
-                throw $_   
+    hidden CreateBrowserFolder(){
+        while($true){
+            $guid = [Guid]::NewGuid().Guid
+            $timeStr = Get-Date -Format 'yyyyMMdd-HHmmssfff'
+            $folder = "$($this.BrowserTempFolder)\$($guid)-$($timeStr)"
+            if(!(Test-Path $folder)){
+                Try{
+                    New-Item -ItemType Directory $folder -ErrorAction Stop
+                    $this.BrowserTempFolder = $folder
+                    break
+                }catch{
+                    throw $_   
+                }
             }
         }
-        while($true){
-            $this.DebugPort = Get-Random -Minimum 65000 -Maximum 65500
-            if($this.DebugPort -notin (Get-NetTCPConnection).LocalPort){
+    }
+    hidden DefineDebugPort(){
+        $defined = $false
+        for($port=65000;$port -le 65500;$port++){
+            if($port -notin (Get-NetTCPConnection).LocalPort){
+                $this.DebugPort = $port
+                $defined = $true
                 break
             }
         }
+        if(!$defined){
+            Throw "Cannot define Debug Port, all ports are busy"
+        }
+    }
+    hidden [System.Diagnostics.Process] StartBrowser(){
         Try{
-            if($this.BackroundProcess){
-                $chromeArgs = "about:blank --remote-debugging-port=$($this.DebugPort) --user-data-dir=$($this.BrowserTempFolder) --headless --disable-extensions --disable-gpu"
-            }else{
-                $chromeArgs = "about:blank --remote-debugging-port=$($this.DebugPort) --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu"
-            }
+            $this.CreateBrowserFolder()
+            $this.DefineDebugPort()
+        }catch{
+            Throw $_
+        }
+        $chromeArgs = "about:blank --remote-debugging-port=$($this.DebugPort) --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu"
+        if($this.BackroundProcess){
+            $chromeArgs += " --headless"
+        }
+        Try{
             $brPID = Start-Process $this.Configuration.BrowserExecutablePath -ArgumentList $chromeArgs -ErrorAction Stop -PassThru
+            if($brPID.HasExited){
+                Throw "Cannot start browser"
+            }
         }catch{
             throw $_
         }
@@ -342,66 +363,66 @@ class WebOperation : Operation {
                     break
                 }
             }
-            if(!$Status){
-                Try{
-                    $process = Get-Process -Id $ProcessId -ErrorAction Stop
-                    if($process.HasExited -and ($null -eq $process.Name)){
-                        $Status = $true
-                        break
-                    }
-                }catch{
-                    if($_.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
-                        $Status = $true
-                        break
-                    }
+            Try{
+                $process = Get-Process -Id $ProcessId -ErrorAction Stop
+                if($process.HasExited -and ($null -eq $process.Name)){
+                    $Status = $true
+                    break
                 }
-                Start-Sleep -Milliseconds 500
+            }catch{
+                if($_.Exception.GetType().FullName -eq "Microsoft.PowerShell.Commands.ProcessCommandException"){
+                    $Status = $true
+                    break
+                }
+            }
+            Start-Sleep -Milliseconds 500
+        }
+        return $Status
+    }
+    hidden [bool] CloseProcess([string]$CimQuery){
+        $Status = $true
+        Try{
+            $cimProcesses = Get-CimInstance -Query $CimQuery -ErrorAction Stop
+        }catch{
+            Throw $_
+        }
+        foreach($cimProcess in $cimProcesses){
+            if(!$this.CloseProcess($cimProcess.ProcessId)){
+                $Status = $false
+                break
             }
         }
         return $Status
     }
     hidden CloseBrowserDriver(){
-        $Stopped = $false
         if(!$script:myDriverPID){
+            $cimQuery = "select * from win32_process where Name = 'chromedriver.exe' and Commanline like '%-port=$($this.DriverPort)%'"
             Try{
-                $PRs = Get-CimInstance -Query "select * from win32_process where Name = 'chromedriver.exe'" -ErrorAction Stop | 
-                Where-Object {$_.CommandLine -Match "-port=$($this.DriverPort)"}
+                if(!$this.CloseProcess($cimQuery)){
+                    Throw "Cannot Close Browser Driver"
+                }
             }catch{
                 Throw $_
             }
-            if($PRs){
-                $script:myDriverPID = Get-Process -Id $PRs[0].ProcessId
-            }else{
-                $Stopped = $true
+        }else{
+            if(!$this.CloseProcess($script:myDriverPID.Id)){
+                Throw "Cannot Close Browser Driver"
             }
-        }
-        if($script:myDriverPID){
-            $Stopped = $this.CloseProcess($script:myDriverPID.Id)
-        }
-        if(!$Stopped){
-            Throw "Cannot Close Browser Driver"
         }
     }
     hidden CloseBrowser(){
         if($script:chromeProcess){
-            Try{
-                Stop-Process -Id $script:chromeProcess.Id -Force -ErrorAction Stop
-            }catch{
-                if($_.Exception.GetType().FullName -ne "Microsoft.PowerShell.Commands.ProcessCommandException"){
-                    Throw $_
-                }
+            if(!$this.CloseProcess($script:chromeProcess.Id)){
+                Throw "Cannot Close The main browser"
             }
         }
+        $cimQuery = "select * from win32_process where Name = 'chrome.exe' and commandline like '%--remote-debugging-port=$($this.DebugPort)%'"
         Try{
-            $prs = Get-CimInstance -Query "select * from win32_process where Name = 'chrome.exe'" -ErrorAction Stop | 
-            Where-Object {$_.CommandLine -match "--remote-debugging-port=$($this.DebugPort)"}
+            if(!$this.CloseProcess($cimQuery)){
+                Throw "Cannot close the other browser processes"
+            }
         }catch{
             Throw $_
-        }
-        foreach($pr in $prs){
-            if(!$this.CloseProcess($pr.ProcessId)){
-                Throw "Cannot close the process"
-            }
         }
     }
     hidden ClearBrowserData(){
@@ -741,8 +762,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU7tXOdTziGosw1wheK/OVztoQ
-# KNOgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUfpe5sf/0INh7rRPsl5xre0+X
+# wJKgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -761,11 +782,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUGHg+iwEjy5Q/Vvx/
-# rC9MawCUwGMwDQYJKoZIhvcNAQEBBQAEggEAWiVbVJLQyeqGzI7NPkXfkmQARaih
-# WK8kbEjY9C4CeQBEcbLKmhuesVNkQB3nfLIt9i8Rs5l/nFH/7u/hox+fRSlnXt0a
-# +3kfVddarfnRtn+FCpxlE+mt40acZQ6lZOy+CBrYhpP5hQATLIQ2kcCre09FHeLU
-# 6VFZt8aKAVFbE5/J8aWP5gI12VNaPH2WndFtoGwhbSFdf6rL+k+Qqw4go/0kyMj9
-# Gk0pClTFTLFet8GOsL1EdJxiAaSy244+bIfhhSGkIQpD96cwL5aqJrD36qAYCkCs
-# pj/VHe+PbodjQviktveA57MNa702rmS9rdkMR+UME386p+1qNoWa1avn4g==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUl9WwYUUIStNVEeLd
+# qFtHGRhb93swDQYJKoZIhvcNAQEBBQAEggEASSC1L/3hfA8jLNLFM7Xvs1AOm6P8
+# MFahSU+THZes2oAk7wFTj8lCCc+4+zKUMmZJF8k3i6BZ694br3gdkjew4aByver2
+# eIl0zc2ZtAJMgIkuPfXNloMmpjhvh56Vx7fdWQXwRYtN0ASInWL4Or7wNrNbozpf
+# 1/KBNfD4T1TtQNbEXjVxOgo+cO1D54cOxWbv9sHsmdGbqkEFC3qKD+cLcilH5vGo
+# B11q3eNG58ESG5KJ25PDWWqUKlAV9VtTL18wef40YKQ1j8xtmdyis86RHaIUB/Wx
+# xQTruT7M8fPZ3MYEhmhqCtahPJvA6W95BHP16bropk57FTInVPguSemjow==
 # SIG # End signature block
