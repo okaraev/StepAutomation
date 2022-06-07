@@ -298,6 +298,18 @@ class WebOperation : Operation {
         }
         if($prPID.HasExited){
             Throw "Cannot Start Browser Driver with port $($this.DriverPort)"
+        }elseif($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
+            $now = Get-Date
+			$started = $false
+			while($now -gt (Get-Date).AddSeconds(-15)){
+				if($this.DriverPort -in (Get-NetTcpConnection).LocalPort){
+					$started = $true
+					Break
+				}
+			}
+			if(!$started){
+				Throw "Cannot Start Browser Driver with port $($this.DriverPort) in 15 seconds"
+			}
         }
         return $prPID
     }
@@ -318,16 +330,72 @@ class WebOperation : Operation {
         }
     }
     hidden DefineDebugPort(){
+        $portsFile = "$env:LOCALAPPDATA\DebugPorts.txt"
+        if(!(Test-Path $portsFile)){
+            Try{
+                New-Item -Path $portsFile -ItemType File -ErrorAction Stop
+            }catch{
+                if($_.Exception.Message -notmatch 'already exists'){
+                    Throw $_
+                }
+            }
+        }
+        $fileContent = $null
+        $file = $null
+        while($true){
+            Try{
+                $fileContent = Get-Content $portsFile -ErrorAction Stop
+                $file = [System.IO.File]::Open($portsFile,'Append','Write')
+                break
+            }catch{
+                if($_.Exception.Message -notmatch 'because it is being used by another process'){
+                    Throw $_
+                }
+            }
+            Start-Sleep -Milliseconds 100
+        }
         $defined = $false
-        for($port=65000;$port -le 65500;$port++){
-            if($port -notin (Get-NetTCPConnection).LocalPort){
-                $this.DebugPort = $port
+        for($p=65000;$p -le 65500;$p++){
+            if($p -notin $fileContent){
+                $this.DebugPort = $p
                 $defined = $true
                 break
             }
         }
         if(!$defined){
-            Throw "Cannot define Debug Port, all ports are busy"
+            Throw "Cannot define Debug port, all ports are busy"
+        }
+        $encoding = [System.Text.Encoding]::UTF8
+        $bytes = $encoding.GetBytes("$($this.DebugPort)`n")
+        $file.Write($bytes,0,"$($this.DebugPort)`n".Length)
+        $file.Close()
+        $file.Dispose()
+    }
+    hidden ClearDefinedDebugPort(){
+        $portsFile = "$env:LOCALAPPDATA\DebugPorts.txt"
+        if(Test-Path $portsFile){
+            $file = $null
+            $fileContent = $null
+            while($true){
+                Try{
+                    $fileContent = Get-Content $portsFile -Raw -ErrorAction Stop
+                    $file = [System.IO.File]::Open($portsFile,'Create','Write')
+                    break
+                }catch{
+                    if($_.Exception.Message -notmatch 'because it is being used by another process'){
+                        Throw $_
+                    }
+                }
+                Start-Sleep -Milliseconds 100
+            }
+            if($fileContent){
+                $fileContent = $fileContent.Replace("$($this.DebugPort)`n",'')
+                $encoding = [System.Text.Encoding]::UTF8
+                $bytes = $encoding.GetBytes($fileContent)
+                $file.Write($bytes,0,$fileContent.Length)
+            }
+            $file.Close()
+            $file.Dispose()
         }
     }
     hidden [System.Diagnostics.Process] StartBrowser(){
@@ -387,7 +455,7 @@ class WebOperation : Operation {
             Throw $_
         }
         foreach($cimProcess in $cimProcesses){
-            if(!$this.CloseProcess($cimProcess.ProcessId)){
+            if(!$this.CloseProcess([int]($cimProcess.ProcessId))){
                 $Status = $false
                 break
             }
@@ -405,14 +473,14 @@ class WebOperation : Operation {
                 Throw $_
             }
         }else{
-            if(!$this.CloseProcess($script:myDriverPID.Id)){
+            if(!$this.CloseProcess([int]($script:myDriverPID.Id))){
                 Throw "Cannot Close Browser Driver"
             }
         }
     }
     hidden CloseBrowser(){
         if($script:chromeProcess){
-            if(!$this.CloseProcess($script:chromeProcess.Id)){
+            if(!$this.CloseProcess([int]($script:chromeProcess.Id))){
                 Throw "Cannot Close The main browser"
             }
         }
@@ -424,6 +492,7 @@ class WebOperation : Operation {
         }catch{
             Throw $_
         }
+        $this.ClearDefinedDebugPort()
     }
     hidden ClearBrowserData(){
         Remove-Item $this.BrowserTempFolder -Recurse -Force -ErrorAction SilentlyContinue
@@ -762,8 +831,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUfpe5sf/0INh7rRPsl5xre0+X
-# wJKgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUxWorG4vAQ7dBzZIyHDw8ULup
+# aCugggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -782,11 +851,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUl9WwYUUIStNVEeLd
-# qFtHGRhb93swDQYJKoZIhvcNAQEBBQAEggEASSC1L/3hfA8jLNLFM7Xvs1AOm6P8
-# MFahSU+THZes2oAk7wFTj8lCCc+4+zKUMmZJF8k3i6BZ694br3gdkjew4aByver2
-# eIl0zc2ZtAJMgIkuPfXNloMmpjhvh56Vx7fdWQXwRYtN0ASInWL4Or7wNrNbozpf
-# 1/KBNfD4T1TtQNbEXjVxOgo+cO1D54cOxWbv9sHsmdGbqkEFC3qKD+cLcilH5vGo
-# B11q3eNG58ESG5KJ25PDWWqUKlAV9VtTL18wef40YKQ1j8xtmdyis86RHaIUB/Wx
-# xQTruT7M8fPZ3MYEhmhqCtahPJvA6W95BHP16bropk57FTInVPguSemjow==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUKciBf4UoE6Ylyl7t
+# 93Ob77XU+FkwDQYJKoZIhvcNAQEBBQAEggEAPuNPpMDi+8N18G6BO59cWDjWf4LS
+# 17nZqqG6k0BU8Hk6f+lcG21MFLCDgTgPTO9yDnqOpQqTFVnzmvLob2nRJ39+JC+M
+# RSyk3Z4b6ThjKJyrPzc+s/+LxBrExvukPWSPVIkZCKxC+ENEqp6XiZE0LaQoJ0Se
+# tGxX8plRD0Bd9dgYIJ88cdoGol/yXApxon3d9DDA5w6zj2gWSbUdeGAl0eGgh+O2
+# D7QddzjIO2vcRZNM3KLJZiXGfCBe9aVVSLg5iBlDqxaq0GjMicWXsIFz+rtCOgAw
+# 9iRDhyoDb6JVAGPDfN/TzZ37hLwPvbH7bP3K+QysaqtWlz2QfM2626Pmxg==
 # SIG # End signature block
