@@ -4,130 +4,140 @@ param(
     [parameter(Mandatory)]
     [System.Object]$Arguments
 )
-
-class testMethod : Method{
-    testMethod()
-    : base ('testMethod',$this.myFunction){}
-    hidden [scriptBlock] $myFunction = {
-        param(
-            [parameter(Mandatory,Position=0)]
-            [System.Object]$Arguments
-        )
-        if($Arguments.Context){
-            $Context = $Arguments.Context
-            $Context.Key = 'myChangedKey'
-            $Context.Value = 'myChangedValue'
-        }else{
-            $Arguments.Key = 'myChangedKey'
-            $Arguments.Value = 'myChangedValue'
-        }
+BeforeAll{
+    if($PSVersionTable.Platform -eq "Unix"){
+        $brTMPFolder = "/tmp/chromedata"
+    }else{
+        $brTMPFolder = "D:\chromedata"
     }
-}
-$testMethod = [testMethod]::new()
-$Steps = @()
-$Steps += [Step]::new('notExistingMethod','Open webSite',1,'https://google.ca','')
-$Op = [Operation]::new($Steps)
-
-$Context1 = [PSCustomObject]@{Key='myDefaultKey';Value='myDefaultValue'}
-
-$driverConf = [DriverConfig]::new("C:\Program Files\Google\Chrome\Application\Chrome.exe", "C:\BrowserDriver\chromedriver.exe")
-
-class GetValue : Method{
-    GetValue()
-    : base('GetValue',$this.myFunction){
-    }
-    hidden [scriptBlock]$myFunction = {
-        [CmdletBinding()]
-        param(
-            [parameter(mandatory=$true)]
-            [System.Object]$Arguments
-        )
-        $Step = $Arguments.Step
-        $Context = $Arguments.context
-        if($null -eq $Context.Driver.WebDriver){
-            throw "Cannot find Driver Context. Make sure that Context argument was added when Starting Steps"
-        }
-        $Driver = $Context.Driver.WebDriver
-        Try{
-            $element = [Element]::GetOne($Driver,$Step.Value)
-        }catch{
-            throw $_
-        }
-        $context.Value = $element.Text
-    }
-}
-
-$localSite = "http://localhost:$($Arguments.LocalSitePort)/"
-$ps = [powershell]::Create()
-$ps.Runspace.SessionStateProxy.SetVariable('url',$localSite)
-[void]$ps.AddScript{
-    $http = [System.Net.HttpListener]::new() 
-    $http.Prefixes.Add($url)
-    $http.Start()
-    while($http.IsListening){
-        $context = $http.GetContext()
-        if ($context.Request.HttpMethod -eq 'GET' -and ($context.Request.RawUrl -eq '/' -or $context.Request.RawUrl -eq '/some/post')) {
-            [string]$html = "
-            <h1>A Powershell Webserver</h1>
-            <form action='/some/post' method='post'>
-                <p>A Basic Form</p>
-                <p>fullname</p>
-                <input type='text' name='fullname'>
-                <p>message</p>
-                <textarea rows='4' cols='50' name='message'></textarea>
-                <br>
-                <input type='submit' value='Submit'>
-            </form>
-            "
-            $buffer = [System.Text.Encoding]::UTF8.GetBytes($html) 
-            $context.Response.ContentLength64 = $buffer.Length
-            $context.Response.OutputStream.Write($buffer, 0, $buffer.Length) 
-            $context.Response.OutputStream.Close()
-        }elseif ($context.Request.HttpMethod -eq 'POST' -and $context.Request.RawUrl -eq '/some/post') {
-            $FormContent = [System.IO.StreamReader]::new($context.Request.InputStream).ReadToEnd()
-            if($FormContent -match '&message=(?<message>\w+)'){
-                $message = $Matches.message
+    class testMethod : Method{
+        testMethod()
+        : base ('testMethod',$this.myFunction){}
+        hidden [scriptBlock] $myFunction = {
+            param(
+                [parameter(Mandatory,Position=0)]
+                [System.Object]$Arguments
+            )
+            if($Arguments.Context){
+                $Context = $Arguments.Context
+                $Context.Key = 'myChangedKey'
+                $Context.Value = 'myChangedValue'
+            }else{
+                $Arguments.Key = 'myChangedKey'
+                $Arguments.Value = 'myChangedValue'
             }
-            [string]$html = "
-            <h1>A Powershell Webserver</h1>
-            <form action='/some/post' method='post'>
-                <p>A Basic Form</p>
-                <p>fullname</p>
-                <input type='text' name='fullname'>
-                <p>message</p>
-                <textarea rows='4' cols='50' name='message'>$message</textarea>
-                <br>
-                <input type='submit' value='Submit'>
-            </form>
-            "
-            $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
-            $context.Response.ContentLength64 = $buffer.Length
-            $context.Response.OutputStream.Write($buffer, 0, $buffer.Length)
-            $context.Response.OutputStream.Close() 
-        }elseif($context.Request.RawUrl -eq '/close'){
-            $HttpResponse = $context.Response
-            $HttpResponse.Headers.Add("Content-Type","text/plain")
-            $HttpResponse.StatusCode = 200
-            $ResponseBuffer = [System.Text.Encoding]::UTF8.GetBytes("")
-            $HttpResponse.ContentLength64 = $ResponseBuffer.Length
-            $HttpResponse.OutputStream.Write($ResponseBuffer,0,$ResponseBuffer.Length)
-            $HttpResponse.Close()
-            Break
         }
     }
-    $http.Stop() 
-    $http.Close()
+    $testMethod = [testMethod]::new()
+    $Steps = @()
+    $Steps += [Step]::new('notExistingMethod','Open webSite',1,'https://google.ca','')
+    $Op = [Operation]::new($Steps)
+    
+    $Context1 = [PSCustomObject]@{Key='myDefaultKey';Value='myDefaultValue'}
+    if($PSVersionTable.Platform -eq "Unix"){
+        $driverConf = [DriverConfig]::new("/usr/bin/google-chrome", "/usr/bin/chromedriver")
+    }else{
+        $driverConf = [DriverConfig]::new("C:\Program Files\Google\Chrome\Application\Chrome.exe", "C:\BrowserDriver\chromedriver.exe")
+    }
+    
+    
+    class GetValue : Method{
+        GetValue()
+        : base('GetValue',$this.myFunction){
+        }
+        hidden [scriptBlock]$myFunction = {
+            [CmdletBinding()]
+            param(
+                [parameter(mandatory=$true)]
+                [System.Object]$Arguments
+            )
+            $Step = $Arguments.Step
+            $Context = $Arguments.context
+            if($null -eq $Context.Driver.WebDriver){
+                throw "Cannot find Driver Context. Make sure that Context argument was added when Starting Steps"
+            }
+            $Driver = $Context.Driver.WebDriver
+            Try{
+                $element = [Element]::GetOne($Driver,$Step.Value)
+            }catch{
+                throw $_
+            }
+            $context.Value = $element.Text
+        }
+    }
+    
+    $localSite = "http://localhost:$($Arguments.LocalSitePort)/"
+    $ps = [powershell]::Create()
+    $ps.Runspace.SessionStateProxy.SetVariable('url',$localSite)
+    [void]$ps.AddScript{
+        $http = [System.Net.HttpListener]::new() 
+        $http.Prefixes.Add($url)
+        $http.Start()
+        while($http.IsListening){
+            $context = $http.GetContext()
+            if ($context.Request.HttpMethod -eq 'GET' -and ($context.Request.RawUrl -eq '/' -or $context.Request.RawUrl -eq '/some/post')) {
+                [string]$html = "
+                <h1>A Powershell Webserver</h1>
+                <form action='/some/post' method='post'>
+                    <p>A Basic Form</p>
+                    <p>fullname</p>
+                    <input type='text' name='fullname'>
+                    <p>message</p>
+                    <textarea rows='4' cols='50' name='message'></textarea>
+                    <br>
+                    <input type='submit' value='Submit'>
+                </form>
+                "
+                $buffer = [System.Text.Encoding]::UTF8.GetBytes($html) 
+                $context.Response.ContentLength64 = $buffer.Length
+                $context.Response.OutputStream.Write($buffer, 0, $buffer.Length) 
+                $context.Response.OutputStream.Close()
+            }elseif ($context.Request.HttpMethod -eq 'POST' -and $context.Request.RawUrl -eq '/some/post') {
+                $FormContent = [System.IO.StreamReader]::new($context.Request.InputStream).ReadToEnd()
+                if($FormContent -match '&message=(?<message>\w+)'){
+                    $message = $Matches.message
+                }
+                [string]$html = "
+                <h1>A Powershell Webserver</h1>
+                <form action='/some/post' method='post'>
+                    <p>A Basic Form</p>
+                    <p>fullname</p>
+                    <input type='text' name='fullname'>
+                    <p>message</p>
+                    <textarea rows='4' cols='50' name='message'>$message</textarea>
+                    <br>
+                    <input type='submit' value='Submit'>
+                </form>
+                "
+                $buffer = [System.Text.Encoding]::UTF8.GetBytes($html)
+                $context.Response.ContentLength64 = $buffer.Length
+                $context.Response.OutputStream.Write($buffer, 0, $buffer.Length)
+                $context.Response.OutputStream.Close() 
+            }elseif($context.Request.RawUrl -eq '/close'){
+                $HttpResponse = $context.Response
+                $HttpResponse.Headers.Add("Content-Type","text/plain")
+                $HttpResponse.StatusCode = 200
+                $ResponseBuffer = [System.Text.Encoding]::UTF8.GetBytes("")
+                $HttpResponse.ContentLength64 = $ResponseBuffer.Length
+                $HttpResponse.OutputStream.Write($ResponseBuffer,0,$ResponseBuffer.Length)
+                $HttpResponse.Close()
+                Break
+            }
+        }
+        $http.Stop() 
+        $http.Close()
+    }
+    
+    $Context2 = [PSCustomObject]@{
+        SourceObject = $null
+        Value = $null
+    }
+    $psState = $ps.BeginInvoke()
+    $WebSteps = [Step]::new('Navigate','Open webSite',1,$localSite,$null),`
+    [Step]::new('SetText','Insert Text',2,'/html/body/form/textarea','okaraev'),`
+    [Step]::new('Click','Submit Click',3,'/html/body/form/input[2]',$null),`
+    [Step]::new('GetValue','Get predefined Value',4,'/html/body/form/textarea',$null)
 }
-
-$Context2 = [PSCustomObject]@{
-    SourceObject = $null
-    Value = $null
-}
-[void]$ps.BeginInvoke()
-$WebSteps = [Step]::new('Navigate','Open webSite',1,$localSite,$null),`
-[Step]::new('SetText','Insert Text',2,'/html/body/form/textarea','okaraev'),`
-[Step]::new('Click','Submit Click',3,'/html/body/form/input[2]',$null),`
-[Step]::new('GetValue','Get predefined Value',4,'/html/body/form/textarea',$null)
 
 
 Describe "Method Class" {
@@ -461,7 +471,7 @@ Describe "WebOperation Class"{
             Try{
                 $exist = Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName
                 $dc = [DriverConfig]::new($exist,$exist)
-                [WebOperation]::New($dc,[Step[]]@(),$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
+                [WebOperation]::New($dc,[Step[]]@(),$($Arguments.BrowserDriverPort),$brTMPFolder,$true)
             }catch{
                 $myErr1 = $_
             }
@@ -480,7 +490,7 @@ Describe "WebOperation Class"{
                 $exist = Get-ChildItem -File | Select-Object -First 1 -ExpandProperty FullName
                 $dc = [DriverConfig]::new($exist,$exist)
                 $Steps = [Step[]]@([Step]::new('Op','Name',1,'//*',$null))
-                [WebOperation]::New($dc,$Steps,6545454,"D:\chromedata",$true)
+                [WebOperation]::New($dc,$Steps,6545454,$brTMPFolder,$true)
             }catch{
                 $myErr1 = $_
             }
@@ -518,7 +528,7 @@ Describe "WebOperation Class"{
     Context "Start Driver"{
         It "Should not return any exceptions" {
             Try{
-                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
+                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),$brTMPFolder,$true)
                 $webOperation.StartDriver($Context2)
             }catch{
                 $myErr = $_
@@ -535,7 +545,7 @@ Describe "WebOperation Class"{
         It "Should return Exception about context"{
             Try{
                 Start-Sleep -Seconds 1
-                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
+                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),$brTMPFolder,$true)
                 $webOperation.StartDriver($Context2)
             }catch{
                 $myErr = $_
@@ -557,7 +567,7 @@ Describe "WebOperation Class"{
         It "Should change the context value"{
             Try{
                 Start-Sleep -Seconds 1
-                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
+                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),$brTMPFolder,$true)
                 $webOperation.StartDriver($Context2)
             }catch{
                 $myErr = $_
@@ -579,7 +589,7 @@ Describe "WebOperation Class"{
         It "Should set and add text"{
             Try{
                 Start-Sleep -Seconds 1
-                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),"D:\chromedata",$true)
+                $webOperation = [WebOperation]::New($driverConf,$WebSteps,$($Arguments.BrowserDriverPort),$brTMPFolder,$true)
                 $webOperation.StartDriver($Context2)
             }catch{
                 $myErr = $_
@@ -610,4 +620,6 @@ Describe "WebOperation Class"{
 
 AfterAll{
     Invoke-WebRequest -Uri "$($localSite)close" -TimeoutSec 2 -ErrorAction SilentlyContinue | Out-Null
+    $ps.EndInvoke($psState)
+    $ps.Stop()
 }

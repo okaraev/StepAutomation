@@ -292,17 +292,27 @@ class WebOperation : Operation {
     }
     hidden [System.Diagnostics.Process] StartBrowserDriver(){
         Try{
-            $prPID = Start-Process $this.Configuration.DriverExecutablePath -ArgumentList "-port=$($this.DriverPort)" -PassThru -WindowStyle Hidden
+            $pathArgName = "Path"
+            if($Global:PSVersionTable.PSEdition -ne "Core"){
+                $pathArgName = "FilePath"
+            }
+            $ps = [Powershell]::Create("CurrentRunspace").AddCommand("Start-Process")
+            [void]$ps.AddParameter($pathArgName,$this.Configuration.DriverExecutablePath)
+            [void]$ps.AddParameter("ArgumentList","-port=$($this.DriverPort)").AddParameter("PassThru")
+            if($Global:PSVersionTable.Platform -ne "Unix"){
+                [void]$ps.AddParameter("WindowStyle","Hidden")
+            }
+            $prPID = $ps.Invoke()
         }catch{
             throw $_
         }
         if($prPID.HasExited){
             Throw "Cannot Start Browser Driver with port $($this.DriverPort)"
-        }elseif($this.DriverPort -notin (Get-NetTCPConnection).LocalPort){
+        }elseif($null -eq (netstat -na | Select-String ":$($this.DriverPort)" | Select-String 'LISTEN')){
             $now = Get-Date
 			$started = $false
 			while($now -gt (Get-Date).AddSeconds(-15)){
-				if($this.DriverPort -in (Get-NetTcpConnection).LocalPort){
+				if($null -ne (netstat -na | Select-String ":$($this.DriverPort)" | Select-String 'LISTEN')){
 					$started = $true
 					Break
 				}
@@ -311,7 +321,7 @@ class WebOperation : Operation {
 				Throw "Cannot Start Browser Driver with port $($this.DriverPort) in 15 seconds"
 			}
         }
-        return $prPID
+        return [System.Diagnostics.Process]::GetProcessById($prPID.Id)
     }
     hidden CreateBrowserFolder(){
         while($true){
@@ -331,6 +341,9 @@ class WebOperation : Operation {
     }
     hidden DefineDebugPort(){
         $portsFile = "$env:LOCALAPPDATA\DebugPorts.txt"
+        if($Global:PSVersionTable.Platform -eq "Unix"){
+            $portsFile = "/tmp/DebugPorts.txt"        
+        }
         if(!(Test-Path $portsFile)){
             Try{
                 New-Item -Path $portsFile -ItemType File -ErrorAction Stop
@@ -373,6 +386,9 @@ class WebOperation : Operation {
     }
     hidden ClearDefinedDebugPort(){
         $portsFile = "$env:LOCALAPPDATA\DebugPorts.txt"
+        if($Global:PSVersionTable.Platform -eq "Unix"){
+            $portsFile = "/tmp/DebugPorts.txt"        
+        }
         if(Test-Path $portsFile){
             $file = $null
             $fileContent = $null
@@ -406,6 +422,9 @@ class WebOperation : Operation {
             Throw $_
         }
         $chromeArgs = "about:blank --remote-debugging-port=$($this.DebugPort) --user-data-dir=$($this.BrowserTempFolder) --disable-extensions --disable-gpu"
+        if($Global:PSVersionTable.Platform -eq "Unix"){
+            $chromeArgs += " --no-sandbox"
+        }
         if($this.BackroundProcess){
             $chromeArgs += " --headless"
         }
@@ -447,15 +466,22 @@ class WebOperation : Operation {
         }
         return $Status
     }
-    hidden [bool] CloseProcess([string]$CimQuery){
+    hidden [bool] CloseProcess([string]$cmdArgs){
         $Status = $true
         Try{
-            $cimProcesses = Get-CimInstance -Query $CimQuery -ErrorAction Stop
+            if($Global:PSVersionTable.Platform -eq "Unix"){
+                $Processes = Get-Process -ErrorAction Stop | Where-Object {$_.CommandLine -match $cmdArgs}
+            }else{
+                $Processes = Get-CimInstance -Query "select * from win32_process where Commandline like '%$cmdArgs%'" -ErrorAction Stop | 
+                ForEach-Object {
+                    [System.Diagnostics.Process]::GetProcessById($_.ProcessId)
+                }
+            }
         }catch{
             Throw $_
         }
-        foreach($cimProcess in $cimProcesses){
-            if(!$this.CloseProcess([int]($cimProcess.ProcessId))){
+        foreach($Process in $Processes){
+            if(!$this.CloseProcess([int]($Process.Id))){
                 $Status = $false
                 break
             }
@@ -464,9 +490,9 @@ class WebOperation : Operation {
     }
     hidden CloseBrowserDriver(){
         if(!$script:myDriverPID){
-            $cimQuery = "select * from win32_process where Name = 'chromedriver.exe' and Commanline like '%-port=$($this.DriverPort)%'"
+            $cmdArgs = "-port=$($this.DriverPort)"
             Try{
-                if(!$this.CloseProcess($cimQuery)){
+                if(!$this.CloseProcess($cmdArgs)){
                     Throw "Cannot Close Browser Driver"
                 }
             }catch{
@@ -484,9 +510,9 @@ class WebOperation : Operation {
                 Throw "Cannot Close The main browser"
             }
         }
-        $cimQuery = "select * from win32_process where Name = 'chrome.exe' and commandline like '%--remote-debugging-port=$($this.DebugPort)%'"
+        $cmdArgs = "--remote-debugging-port=$($this.DebugPort)"
         Try{
-            if(!$this.CloseProcess($cimQuery)){
+            if(!$this.CloseProcess($cmdArgs)){
                 Throw "Cannot close the other browser processes"
             }
         }catch{
