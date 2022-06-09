@@ -13,7 +13,7 @@ Install-Module StepAutomation
 ---
 ### Importing module
 ```powershell
-# Note! You have to use 'using module' insted of Import-Module to importing classes
+# Note! You have to use 'using module' instead of Import-Module to importing classes
 using module StepAutomation
 ```
 
@@ -67,14 +67,18 @@ $mySingleStep = [Step]::new('MethodName','Action Description',1,'Value','Source'
 # $StepsFromConfig is a 'Step' array
 # You can convert your Json Configuration to Object array with ConvertFrom-Json
 $OP = [Operation]::new($StepsFromConfig)
+
 # StartSteps() method of 'Operation' class starts executing all steps
 $OP.StartSteps()
+
 # If you have dependend operation in your logic and you need some information exchange between actions
 # you can use StartSteps($Context) method of 'Operation' class
 $OP.StartSteps([PSCustomObject]@{Key=myKey;Value=myValue})
+
 # Also you can start a single step with StartStep($ThirdStep) or StartStep($ThirdStep,$Context)
 $OP.StartStep($StepFromConfig[2])
 $OP.StartStep($StepFromConfig[2],[PSCustomObject]@{Key=myKey;Value=myValue})
+
 # You can see default class' methods and your own methods with GetDefaultMethods() and GetMethods()
 $OP.GetDefaultMethods()
 $OP.GetMethods()
@@ -104,6 +108,7 @@ class SampleMethod : Method{
         }
     }
 }
+
 # Manualy using the method
 $myMethod = [SampleMethod]::new()
 $myMethod.Execute($Arguments)
