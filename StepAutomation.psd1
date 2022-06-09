@@ -12,7 +12,7 @@
 RootModule = 'StepAutomation.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.1.0'
+ModuleVersion = '1.1.1'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -101,13 +101,13 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        # Tags = @()
+        Tags = 'PSModule','PSEdition_Desktop','PSEdition_Core','Windows','Linux','Ubuntu','PowerShell'
 
         # A URL to the license for this module.
         # LicenseUri = ''
 
         # A URL to the main website for this project.
-        # ProjectUri = ''
+        ProjectUri = 'https://github.com/okaraev/StepAutomation'
 
         # A URL to an icon representing this module.
         # IconUri = ''
@@ -136,3 +136,35 @@ PrivateData = @{
 
 }
 
+
+# SIG # Begin signature block
+# MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
+# gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUfsM9FMEmg/1ZPrI/4SU74HzD
+# 2S6gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
+# DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
+# KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
+# ItI3TZrHeCvS0y234HdH35e9syi//ELK62bs8QlBSFKKa47BL1pvjpkbXXuB0OVF
+# f+gLxel5XYHS3cMKu4NVrKR3gY+mDWIZc5oJzr6kWvYiKb4ZG7cKBr+7UoFSINtB
+# 9kvIBPbWglcCMlvzbkDD520j73+0XvqKI5rgt0Y+MPlEcb9gsYHxsXeSwDotCpe7
+# 17Huz/eJ2Yg7nG2ns2UB4jDWpOOul1uMeoETf7ofBzpv7HxL8P4BaKuFWjlvhcUT
+# DSjDaICmzeWbvzr/c8gery5b4TobrT7z46iKi1qWWLd3R2Ii+HVQ0lECAwEAAaNG
+# MEQwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQMMAoGCCsGAQUFBwMDMB0GA1UdDgQW
+# BBSpQGoWjLBKEBibL7lPaCEOCN74TzANBgkqhkiG9w0BAQsFAAOCAQEAVQzjCunl
+# iqpSE00SAXtN2nuEUV3caIdvQ5NWlCZSdF7XliKSG9RC/aZ5zDfIYKNdCc+dwz1z
+# Dn0aMhT3q96KWMBOPw9oLfF1SyccAH4gKRfqELn7K+dsUvMNSS8WUc9bbQzj5Wyh
+# ywkd+Dzrrxot+aLUYltV7hZ0BppdQAlKSl81NpW/wc0DIj5I1LTsOYUAqwqGi+vz
+# 1pe02hZ4cykEJ9f86JcF2otVnK2s6dVPf4TMfyEXCoKJtpcqrVbzuEbzna1tkkKN
+# XHD8d/BZIQsTW9bgxok4DotADEHdvA+NKpRmT1p4OMuGZTUaqpWUqSbqd+8Bdv40
+# SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
+# dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
+# MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUQ34CzjLvLqjkJ/WK
+# hBTYl1TREc0wDQYJKoZIhvcNAQEBBQAEggEAGYJxqmyCyVm/DRXMsFT2QqgJGJde
+# 16yAe0sT2PfoApo5sl4S2zKsnGrFZRUiqe2IbydWj21EEJvsiJphttNtzOcCXk6N
+# OwX3C9Oll7ihGyz4aJG7Z7mZbJUZfFeW4hWcRDdp/Z9DH2GNvbIysSIc/osxh/46
+# lGbO25Zbz5xziZTuyKT/c2QKr1+3NsGAF6+kC2i4AhGnnIWH2V7xgXYZCHiSQ7Vp
+# N8CQ2uIMvDjILVOfpNJWIQ/ma9mdWUAxEhkAir6QwdaE4itrZAdV1OcjLM5tpMY+
+# LmC6i+Ao5kM309a9ATUc+O8hxp/l1a4QX2Q4KgEKq9n1Hy9e7wABW6H2cA==
+# SIG # End signature block
