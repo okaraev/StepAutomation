@@ -1,13 +1,19 @@
 class Method{
     hidden [ScriptBlock] $Function
     hidden [string] $Method
-    hidden Validate($Method){
+    hidden Validate($Method,$Function){
         if([string]::IsNullOrEmpty($Method)){
             throw "Cannot validate Method Name, provide a valid method name"
         }
+        if($Function.Ast.Paramblock.Parameters.Count -ne 1){
+            throw "Cannot validate Method $Method Function, it must have only one parameter"
+        }
+        if($Function.Ast.Paramblock.Parameters.StaticType.ToString() -ne 'System.Object'){
+            throw "Cannot validate Method $Method Function, parameters type must be 'System.Object'"
+        }
     }
     Method([String]$Method,[scriptBlock]$Function){
-        $this.Validate($Method)
+        $this.Validate($Method,$Function)
         $this.Method = $Method
         $this.Function = $Function
     }
@@ -122,10 +128,15 @@ class Operation{
         foreach($ass in $Assemblies){
             foreach($ChildClass in $ass.Gettypes()){
                 if($ChildClass.BaseType -eq [Method]){
-                    if($ass.isDefault){
-                        $this.DefaultMethods[$ChildClass.Name] = $ChildClass
+                    Try{
+                        $myClass = $ChildClass::new()
+                    }catch{
+                        Throw $_
                     }
-                    $this.AllMethods[$ChildClass.Name] = $ChildClass
+                    $this.AllMethods[$myClass.Method] = $ChildClass
+                    if($ass.isDefault){
+                        $this.DefaultMethods[$myClass.Method] = $ChildClass
+                    }
                 }
             }
         }
@@ -587,8 +598,14 @@ class WebOperation : Operation {
 
 class Element : Method{
     Element()
-    : base('Element',{})
+    : base('Element',$this.myFunction)
     {}
+    hidden [ScriptBlock] $myFunction = {
+        param(
+            [parameter(Mandatory,Position=0)]
+            [System.Object]$Arguments
+        )
+    }
     static [OpenQA.Selenium.WebElement[]] GetMany([OpenQA.Selenium.Remote.RemoteWebDriver]$Driver,[string]$XPath,[int]$RetryThreshold){
         $waitSecs = 1
         $result = $null
@@ -657,8 +674,14 @@ class Element : Method{
 
 class Window : Method{
     Window()
-    : base('Window',{})
+    : base('Window',$this.myFunction)
     {}
+    hidden [ScriptBlock] $myFunction = {
+        param(
+            [parameter(Mandatory,Position=0)]
+            [System.Object]$Arguments
+        )
+    }
     static SwitchTo([OpenQA.Selenium.Remote.RemoteWebDriver]$Driver,[string]$Window){
         Try{
             [void]$Driver.SwitchTo().Window($Window)
@@ -680,7 +703,13 @@ class Window : Method{
 
 class Frame : Method {
     Frame()
-    : base('Frame',{}){}
+    : base('Frame',$this.myFunction){}
+    hidden [ScriptBlock] $myFunction = {
+        param(
+            [parameter(Mandatory,Position=0)]
+            [System.Object]$Arguments
+        )
+    }
     static SwitchToFrame ([OpenQA.Selenium.Remote.RemoteWebDriver]$Driver,[string]$FrameName){
         Try{
             [void]$Driver.SwitchTo().Frame($FrameName)
@@ -857,8 +886,8 @@ class SetText : Method {
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUrJFeBbkAhU9VWcQwILRrZU2Y
-# KregggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU1Nyb67fRzotvFaYBk55Dp74U
+# 39+gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -877,11 +906,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUmwfOuSlK/7icgAQi
-# uZaUhm/DdXAwDQYJKoZIhvcNAQEBBQAEggEAKUM0wmUmrltpMs9Cd5keNYXheJ/3
-# B+do3WStbijyqW5AH/liLg2QR1ekNDh18iu4+hwHk8Kj61mrxDg+x+JdOeNe8Z5J
-# nubbqiAa/fbuB0JC9SGnw5Luwz1a9GQ3OQ3ugRgMkN1gjcjIlybwAXlkmQGQZLdC
-# mftPlHOlFbgoh4bJw9emx4uwKHgCSh9+vfT8P/KmtmLAk3dpER0RrFgH7PbNnKxU
-# 34XypR66QJl8/QdQAgxzjqGLwhwVGJZqOF2O6zSmSO/EcdHkbSbYLHhpBNZtOLhF
-# E5fFXWddSQ01Nza6BFKhLy0g5DVJYJAZAnn6P057rGNQg7txSlZT0MztBQ==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUstT2nIoIA+5yYvVS
+# djYHO+gvFgUwDQYJKoZIhvcNAQEBBQAEggEANwBkdHdL7c5s18t+ltHBvHmr2rGM
+# uvMeecTcreImroTOEGi2b1iDrR7MnVepXvdbapHj/BHzSs/a2ZQY1veERF1/mP0Q
+# MuZ82UUfhZ2pCkYNbL25zDXD6cmn1oGMu7ha6N4yGXRqLEtdsa8DPDn9+1Aa4Wzz
+# +CHTwJi3a/XNeZj3k4Rdpft0XTfQZYvbFGvC8nOX/uw8cD63vtPdwv7gXqTgQLAI
+# uULUzyeb8IxKBmZqajRrXDKeml7/IQzNXs2PJKfAVVSJvK2HMANJufkzuYVgCjqR
+# 9ydB7fmU6fy53ACmaagTmSHb1ekdghq4dWBy/n6784M+wGts4v2DoVjW2w==
 # SIG # End signature block
