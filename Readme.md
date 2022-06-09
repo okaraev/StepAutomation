@@ -17,10 +17,16 @@ Install-Module StepAutomation
 using module StepAutomation
 ```
 
+### Using 'Step' Class
+
+```powershell
+# You can create steps with the 'Step' class or you can load it from json file
+$mySingleStep = [Step]::new('MethodName','Action Description','Step','Value','Source')
+```
+
 
 ### Configuration Sample
 ```json
-# Sample Configuration Json
 [
     {
       "Name": "AD User Get",
@@ -98,7 +104,7 @@ class SampleMethod : Method{
         }
     }
 }
-# Manual using the method
+# Manualy using the method
 $myMethod = [SampleMethod]::new()
 $myMethod.Execute($Arguments)
 ```
