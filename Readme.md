@@ -21,7 +21,7 @@ using module StepAutomation
 
 ```powershell
 # You can create steps with the 'Step' class or you can load it from json file
-$mySingleStep = [Step]::new('MethodName','Action Description','Step','Value','Source')
+$mySingleStep = [Step]::new('MethodName','Action Description',1,'Value','Source')
 ```
 
 
