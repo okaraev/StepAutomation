@@ -618,6 +618,56 @@ Describe "WebOperation Class"{
     }
 }
 
+Describe "Methods" {
+    Context "HTTPGet"{
+        It "Should return Exception about URI"{
+            $Step = [PSCustomObject]@{
+                Value = "localhost:65158"
+            }
+            $Context = [PSCustomObject]::new()
+            $Arguments1 = [PSCustomObject]@{
+                Step = $Step
+            }
+            Try{
+                $httpget = [HTTPGet]::new()
+                $httpget.Execute($Arguments1)
+            }catch{
+                $myErr1 = $_
+            }
+            $myErr1.Exception.Message | Should -Be "Cannot find Information exchange Object. Make sure that a argument was added when Starting Steps"
+
+            $Arguments2 = [PSCustomObject]@{
+                Step = $Step
+                Context = $Context
+            }
+            Try{
+                $httpget.Execute($Arguments2)
+            }catch{
+                $myErr2 = $_
+            }
+            $myErr2.Exception.Message | Should -Be "Uri scheme must be either http or https"
+        }
+        It "Must assign result to the context"{
+            $Step = [PSCustomObject]@{
+                Value = "http://localhost:$($Arguments.LocalSitePort)/"
+            }
+            $Context = [PSCustomObject]::new()
+            $Arguments = [PSCustomObject]@{
+                Step = $Step
+                Context = $Context
+            }
+            Try{
+                $httpget = [HTTPGet]::new()
+                $httpget.Execute($Arguments)
+            }catch{
+                $myErr = $_
+            }
+            $myErr | Should -Be $null
+            $Context.HTTPGetValue.RawContent | Should -Match "Powershell Webserver"
+        }
+    }
+}
+
 AfterAll{
     Invoke-WebRequest -Uri "$($localSite)close" -TimeoutSec 2 -ErrorAction SilentlyContinue | Out-Null
     $ps.EndInvoke($psState)
