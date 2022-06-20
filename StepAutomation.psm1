@@ -883,11 +883,43 @@ class SetText : Method {
     }
 }
 
+class HTTPGet : Method {
+    HTTPGet()
+    : base('HTTPGet',$this.myFunction){
+    }
+    hidden [scriptBlock]$myFunction = {
+        [CmdletBinding()]
+        param(
+            [parameter(mandatory=$true)]
+            [System.Object]$Arguments
+        )
+        if(!$Arguments.Context){
+            throw "Cannot find Information exchange Object. Make sure that a argument was added when Starting Steps"
+        }
+        $Context = $Arguments.Context
+        $Step = $Arguments.Step
+        $URI = $Step.Value -as [Uri]
+        if($null -eq $URI){
+            throw "Cannot validate Value argument, value must be an URI"
+        }elseif(!$URI.isAbsoluteUri){
+            throw "Cannot validate Value argument, value must be an URI"
+        }elseif($Uri.Scheme -notin ("http","https")){
+            throw "Uri scheme must be either http or https"
+        }
+        Try{
+            $result = Invoke-WebRequest -Uri $URI -Method Get -ErrorAction Stop
+            $Context | Add-Member -NotePropertyName 'HTTPGetValue' -NotePropertyValue $result -Force
+        }catch{
+            throw $_
+        }
+    }
+}
+
 # SIG # Begin signature block
 # MIIFZwYJKoZIhvcNAQcCoIIFWDCCBVQCAQExCzAJBgUrDgMCGgUAMGkGCisGAQQB
 # gjcCAQSgWzBZMDQGCisGAQQBgjcCAR4wJgIDAQAABBAfzDtgWUsITrck0sYpfvNR
-# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQU1Nyb67fRzotvFaYBk55Dp74U
-# 39+gggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
+# AgEAAgEAAgEAAgEAAgEAMCEwCQYFKw4DAhoFAAQUBj5gBYAjBG4PPpuGqnFpC2bm
+# 9+OgggMEMIIDADCCAeigAwIBAgIQbPi4sIAtyKVLGqoZHqXXlTANBgkqhkiG9w0B
 # AQsFADAYMRYwFAYDVQQDDA1PZ3RheSBHYXJheWV2MB4XDTIxMDczMDE0MjQzMloX
 # DTIyMDczMDE0NDQzMlowGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXlldjCCASIwDQYJ
 # KoZIhvcNAQEBBQADggEPADCCAQoCggEBALYXMDLGDEKJ/pV58dD5KbOMMPTFGFXd
@@ -906,11 +938,11 @@ class SetText : Method {
 # SLptB0yXRqJQ5DGCAc0wggHJAgEBMCwwGDEWMBQGA1UEAwwNT2d0YXkgR2FyYXll
 # dgIQbPi4sIAtyKVLGqoZHqXXlTAJBgUrDgMCGgUAoHgwGAYKKwYBBAGCNwIBDDEK
 # MAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEEAYI3
-# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUstT2nIoIA+5yYvVS
-# djYHO+gvFgUwDQYJKoZIhvcNAQEBBQAEggEANwBkdHdL7c5s18t+ltHBvHmr2rGM
-# uvMeecTcreImroTOEGi2b1iDrR7MnVepXvdbapHj/BHzSs/a2ZQY1veERF1/mP0Q
-# MuZ82UUfhZ2pCkYNbL25zDXD6cmn1oGMu7ha6N4yGXRqLEtdsa8DPDn9+1Aa4Wzz
-# +CHTwJi3a/XNeZj3k4Rdpft0XTfQZYvbFGvC8nOX/uw8cD63vtPdwv7gXqTgQLAI
-# uULUzyeb8IxKBmZqajRrXDKeml7/IQzNXs2PJKfAVVSJvK2HMANJufkzuYVgCjqR
-# 9ydB7fmU6fy53ACmaagTmSHb1ekdghq4dWBy/n6784M+wGts4v2DoVjW2w==
+# AgELMQ4wDAYKKwYBBAGCNwIBFTAjBgkqhkiG9w0BCQQxFgQUoxDUx01aOaENFRvi
+# eSp4fWOZoxMwDQYJKoZIhvcNAQEBBQAEggEASSC3nj0ialABLT8Xi9us0d7fdW+h
+# +pmh+4/4zL1+XcjjLqWka7+T0ftJUtnwfudBXVOkmRgX+/nghGt13KQ2I4SpkF/1
+# lBl8ERbniwbWUKtRwqhEzmhXcIINZTT+Fcgtas1bLTdZBwJeNvjM/f0xqT4AFDmu
+# vVLa6xaxm11KH7FIe0CtRnKWGFlEfztuopkE3MGbOYvUYHVvVasJ0ScVv4FilvW4
+# OCSinC31IJsNmXPVHdtmvPodhiliBW6+hFVVaJtd4q50l60vg05blaEO/O49bXLN
+# kyTWzbMwCC7aBmS3xf2BoscBs7lghAv9DXrMl2xdfwfrHFaafusIVrQvSQ==
 # SIG # End signature block
