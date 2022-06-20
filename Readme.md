@@ -13,7 +13,7 @@ Install-Module StepAutomation
 ---
 ### Importing module
 ```powershell
-# Note! You have to use 'using module' instead of Import-Module to importing classes
+# Note! You have to use 'using module' instead of Import-Module to import classes
 using module StepAutomation
 ```
 
@@ -65,7 +65,7 @@ $mySingleStep = [Step]::new('MethodName','Action Description',1,'Value','Source'
 
 ```powershell
 # $StepsFromConfig is a 'Step' array
-# You can convert your Json Configuration to Object array with ConvertFrom-Json
+# You can convert your Json Configuration to Object array with ConvertFrom-Json cmdlet
 $OP = [Operation]::new($StepsFromConfig)
 
 # StartSteps() method of 'Operation' class starts executing all steps
@@ -75,11 +75,11 @@ $OP.StartSteps()
 # you can use StartSteps($Context) method of 'Operation' class
 $OP.StartSteps([PSCustomObject]@{Key=myKey;Value=myValue})
 
-# Also you can start a single step with StartStep($ThirdStep) or StartStep($ThirdStep,$Context)
+# Also you can start a single step with StartStep($ThirdStep) or StartStep($ThirdStep,$Context) method
 $OP.StartStep($StepFromConfig[2])
 $OP.StartStep($StepFromConfig[2],[PSCustomObject]@{Key=myKey;Value=myValue})
 
-# You can see default class' methods and your own methods with GetDefaultMethods() and GetMethods()
+# You can see default class' methods and your own methods with GetDefaultMethods() and GetMethods() methods
 $OP.GetDefaultMethods()
 $OP.GetMethods()
 ```
@@ -90,7 +90,7 @@ $OP.GetMethods()
 # You can implement as many methods as you need
 # Every methods function must take an argument as 'System.Object'
 # You can access executing step with the 'Step' property of the object argument
-# Also when you need information exchange Context Object will be accessible with the context property
+# Also when you need information exchange, Context Object will be accessible with the context property
 # of the object argument
 class SampleMethod : Method{
     SampleMethod()
@@ -109,7 +109,7 @@ class SampleMethod : Method{
     }
 }
 
-# Manualy using the method
+# Manual using the method
 $myMethod = [SampleMethod]::new()
 $myMethod.Execute($Arguments)
 ```
